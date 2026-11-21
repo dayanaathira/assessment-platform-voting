@@ -57,6 +57,9 @@ export const envSchema = z
           'CORS_ORIGINS must list at least one origin for a browser-facing service',
       }),
 
+    // Where daily log files are written (applications/, errors/, exceptions/).
+    LOG_DIR: z.string().min(1).optional(),
+
     LOG_LEVEL: z
       .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])
       .optional(),
