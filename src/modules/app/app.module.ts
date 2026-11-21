@@ -13,6 +13,7 @@ import { HealthModule } from '../health/health.module';
 import { FeatureRequestModule } from '../feature-request/feature-request.module';
 import { AdminModule } from '../admin/admin.module';
 import { ReportingModule } from '../reporting/reporting.module';
+import { UserModule } from '../user/user.module';
 import { StatusSeeder } from '../../common/seeds/status.seeder';
 import { RoleSeeder } from '../../common/seeds/role.seeder';
 
@@ -28,6 +29,7 @@ import { RoleSeeder } from '../../common/seeds/role.seeder';
     FeatureRequestModule,
     AdminModule,
     ReportingModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService, StartupService, AllExceptionsFilter],
