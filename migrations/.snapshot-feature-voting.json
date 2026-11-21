@@ -42,6 +42,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "feature_request_id": {
           "name": "feature_request_id",
           "type": "uuid",
@@ -93,6 +110,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -137,6 +171,18 @@
       "checks": [],
       "triggers": [],
       "foreignKeys": {
+        "comment_created_by_foreign": {
+          "columnNames": [
+            "created_by"
+          ],
+          "constraintName": "comment_created_by_foreign",
+          "localTableName": "feature_dev.comment",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
+        },
         "comment_feature_request_id_foreign": {
           "columnNames": [
             "feature_request_id"
@@ -147,6 +193,18 @@
             "id"
           ],
           "referencedTableName": "feature_dev.feature_request"
+        },
+        "comment_updated_by_foreign": {
+          "columnNames": [
+            "updated_by"
+          ],
+          "constraintName": "comment_updated_by_foreign",
+          "localTableName": "feature_dev.comment",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
         },
         "comment_user_id_foreign": {
           "columnNames": [
@@ -200,6 +258,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "feature_request_id": {
           "name": "feature_request_id",
           "type": "uuid",
@@ -251,6 +326,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -295,6 +387,18 @@
       "checks": [],
       "triggers": [],
       "foreignKeys": {
+        "comment_created_by_foreign": {
+          "columnNames": [
+            "created_by"
+          ],
+          "constraintName": "comment_created_by_foreign",
+          "localTableName": "feature_dev.comment",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
+        },
         "comment_feature_request_id_foreign": {
           "columnNames": [
             "feature_request_id"
@@ -305,6 +409,18 @@
             "id"
           ],
           "referencedTableName": "feature_dev.feature_request"
+        },
+        "comment_updated_by_foreign": {
+          "columnNames": [
+            "updated_by"
+          ],
+          "constraintName": "comment_updated_by_foreign",
+          "localTableName": "feature_dev.comment",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
         },
         "comment_user_id_foreign": {
           "columnNames": [
@@ -375,6 +491,23 @@
           "enumItems": [],
           "mappedType": "uuid"
         },
+        "delete_flag": {
+          "name": "delete_flag",
+          "type": "boolean",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "false",
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "boolean"
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -511,6 +644,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "vote_count": {
           "name": "vote_count",
           "type": "int",
@@ -632,6 +782,18 @@
             "id"
           ],
           "referencedTableName": "feature_dev.status"
+        },
+        "feature_request_updated_by_foreign": {
+          "columnNames": [
+            "updated_by"
+          ],
+          "constraintName": "feature_request_updated_by_foreign",
+          "localTableName": "feature_dev.feature_request",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
         }
       },
       "comment": null
@@ -691,6 +853,23 @@
           "enumItems": [],
           "mappedType": "uuid"
         },
+        "delete_flag": {
+          "name": "delete_flag",
+          "type": "boolean",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "false",
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "boolean"
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -827,6 +1006,23 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
         "vote_count": {
           "name": "vote_count",
           "type": "int",
@@ -948,6 +1144,18 @@
             "id"
           ],
           "referencedTableName": "feature_dev.status"
+        },
+        "feature_request_updated_by_foreign": {
+          "columnNames": [
+            "updated_by"
+          ],
+          "constraintName": "feature_request_updated_by_foreign",
+          "localTableName": "feature_dev.feature_request",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "feature_dev.user",
+          "deleteRule": "set null"
         }
       },
       "comment": null
