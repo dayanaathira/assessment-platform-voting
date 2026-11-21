@@ -18,6 +18,7 @@ import { AddCommentDto } from './dtos/add-comment.dto';
 import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
 import { CommentDto } from './dtos/comment.dto';
 import { CommentListDto } from './dtos/comment-list.dto';
+import { DefaultDto } from './dtos/default.dto';
 import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
@@ -60,6 +61,20 @@ export class FeatureRequestController {
   )
   create(@Body() dto: AddFeatureRequestDto): Promise<FeatureRequestDto> {
     return this.featureRequestService.create('', dto);
+  }
+
+  /**
+   * @returns Every status, in id order.
+   */
+  // Must stay above @Get(':id'), or "status" is matched as an id.
+  @Get('status')
+  @CustomApiResponse(
+    'List statuses',
+    'Returns every feature request status, in id order.',
+    HttpStatus.OK,
+  )
+  listStatuses(): Promise<DefaultDto[]> {
+    return this.featureRequestService.listStatuses();
   }
 
   /**

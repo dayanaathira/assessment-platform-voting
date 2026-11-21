@@ -2,7 +2,7 @@ import { Expose } from 'class-transformer';
 
 export class DefaultDto {
   @Expose()
-  id!: string;
+  id!: string | number;
 
   @Expose()
   name!: string;

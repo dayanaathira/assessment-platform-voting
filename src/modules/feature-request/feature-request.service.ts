@@ -17,6 +17,7 @@ import { DefaultFilterDto } from '../../common/dtos/default-filter.dto';
 import { CommentDto } from './dtos/comment.dto';
 import { CommentListDto } from './dtos/comment-list.dto';
 import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
+import { DefaultDto } from './dtos/default.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
 import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dto';
@@ -29,6 +30,19 @@ import { Vote } from './entities/votes.entity';
 @Injectable()
 export class FeatureRequestService {
   constructor(private readonly em: EntityManager) {}
+
+  /**
+   * @returns Every status, in id order.
+   */
+  async listStatuses(): Promise<DefaultDto[]> {
+    const statuses = await this.em.find(Status, {}, { orderBy: { id: 'asc' } });
+
+    return plainToInstance(
+      DefaultDto,
+      statuses.map((s) => ({ id: s.id, name: s.name })),
+      { excludeExtraneousValues: true },
+    );
+  }
 
   /**
    * Lists requests, excluding merged and deleted ones, with whether the user
