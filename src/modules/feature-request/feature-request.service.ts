@@ -10,6 +10,7 @@ import { STATUS_ID } from '../../common/const/status.const';
 import { nextDay, startOfBusinessDay } from '../../common/utils/date.util';
 import { containsPattern } from '../../common/utils/query.util';
 import { User } from '../user/entities/user.entity';
+import { USER_FIELDS } from '../user/user.const';
 import { AddCommentDto } from './dtos/add-comment.dto';
 import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
 import { DefaultFilterDto } from '../../common/dtos/default-filter.dto';
@@ -24,8 +25,6 @@ import { FeatureRequest } from './entities/feature-request.entity';
 import { RequestMerge } from './entities/request-merge.entity';
 import { Status } from './entities/status.entity';
 import { Vote } from './entities/votes.entity';
-
-const USER_FIELDS = ['id', 'name', 'username'] as const;
 
 @Injectable()
 export class FeatureRequestService {

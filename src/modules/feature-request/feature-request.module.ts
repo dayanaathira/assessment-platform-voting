@@ -19,6 +19,7 @@ import { Status } from './entities/status.entity';
     ]),
   ],
   providers: [FeatureRequestService],
+  exports: [FeatureRequestService],
   controllers: [FeatureRequestController],
 })
 export class FeatureRequestModule {}

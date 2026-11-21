@@ -11,6 +11,7 @@ import { SERVICE_NAME } from '../../app.constants';
 import { StartupService } from '../../startup.service';
 import { HealthModule } from '../health/health.module';
 import { FeatureRequestModule } from '../feature-request/feature-request.module';
+import { AdminModule } from '../admin/admin.module';
 import { StatusSeeder } from '../../common/seeds/status.seeder';
 import { RoleSeeder } from '../../common/seeds/role.seeder';
 
@@ -24,6 +25,7 @@ import { RoleSeeder } from '../../common/seeds/role.seeder';
     DbSeederModule.forRoot([StatusSeeder, RoleSeeder]),
     HealthModule,
     FeatureRequestModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService, StartupService, AllExceptionsFilter],

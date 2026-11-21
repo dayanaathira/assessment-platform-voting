@@ -1,5 +1,4 @@
 import { Expose, Type } from 'class-transformer';
-import { FeatureRequestDto } from './feature-request.dto';
 import { UserDto } from '../../user/dtos/user.dto';
 
 export class RequestMergeDto {
@@ -7,18 +6,17 @@ export class RequestMergeDto {
   id!: string;
 
   @Expose()
-  @Type(() => FeatureRequestDto)
-  sourceRequest!: FeatureRequestDto;
+  sourceRequestId!: string;
 
   @Expose()
-  @Type(() => FeatureRequestDto)
-  targetRequest!: FeatureRequestDto;
+  targetRequestId!: string;
+
+  // Votes newly added to the target; voters already on it aren't counted.
+  @Expose()
+  votesMoved!: number;
 
   @Expose()
-  votesMoved?: number;
-
-  @Expose()
-  commentsMoved?: number;
+  commentsMoved!: number;
 
   @Expose()
   @Type(() => UserDto)
