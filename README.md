@@ -173,17 +173,17 @@ Add a seeder under `src/common/seeds/` and pass it into
 than writing raw upserts, and keep seeders idempotent.
 
 ```ts
-// src/common/seeds/example.seeder.ts
+// src/common/seeds/feature.seeder.ts
 import { Seeder } from '@mikro-orm/seeder';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Example } from '../../modules/example/entities/example.entity';
+import { Feature } from '../../modules/feature/entities/feature.entity';
 import { seedIfMissing } from '../utils/seed.util';
 
-export class ExampleSeeder extends Seeder {
+export class FeatureSeeder extends Seeder {
   async run(entityManager: EntityManager): Promise<void> {
-    await seedIfMissing(entityManager, Example, [
-      { id: 1, name: 'First example' },
-      { id: 2, name: 'Second example' },
+    await seedIfMissing(entityManager, Feature, [
+      { id: 1, name: 'Dark mode' },
+      { id: 2, name: 'CSV export' },
     ]);
   }
 }
@@ -191,13 +191,8 @@ export class ExampleSeeder extends Seeder {
 
 ```ts
 // src/modules/app/app.module.ts
-DbSeederModule.forRoot([ExampleSeeder]),
+DbSeederModule.forRoot([FeatureSeeder]),
 ```
-
-[`ExampleSeeder`](src/common/seeds/example.seeder.ts) ships as a worked
-reference, alongside [`Example`](src/modules/example/entities/example.entity.ts)
-— delete both once you have real entities to seed instead; they exist to show
-the pattern, not to be kept.
 
 ## Configuration
 
@@ -293,19 +288,6 @@ they are wired:
 when an entity changed but no migration did — the failure mode that apply-only
 migrations create, and the one nothing else catches. See
 [Forgetting a migration](#forgetting-a-migration).
-
-## Worked example
-
-`src/modules/example/` is a small vertical slice showing a DTO with
-validation, a service, a controller, tests, an
-entity ([`Example`](src/modules/example/entities/example.entity.ts)) and a
-seeder ([`ExampleSeeder`](src/common/seeds/example.seeder.ts)), so the slice
-demonstrates the pattern end to end: entity and seed data.
-
-This is the one deliberate exception to "no entities and no migrations" at
-the top of this README — it exists purely as a reference to copy from. Delete
-`src/modules/example/` and `ExampleSeeder` once your service has real
-entities; don't build on top of it.
 
 ## Request IDs and logging
 

@@ -10,8 +10,6 @@ import { DbSeederModule } from '../../common/seeds/db-seeder.module';
 import { SERVICE_NAME } from '../../app.constants';
 import { StartupService } from '../../startup.service';
 import { HealthModule } from '../health/health.module';
-import { ExampleModule } from '../example/example.module';
-import { ExampleSeeder } from '../../common/seeds/example.seeder';
 
 @Module({
   imports: [
@@ -20,9 +18,8 @@ import { ExampleSeeder } from '../../common/seeds/example.seeder';
       isGlobal: true,
     }),
     WinstonLoggerModule.forRoot(SERVICE_NAME),
-    DbSeederModule.forRoot([ExampleSeeder]),
+    DbSeederModule.forRoot([]),
     HealthModule,
-    ExampleModule,
   ],
   controllers: [AppController],
   providers: [AppService, StartupService, AllExceptionsFilter],

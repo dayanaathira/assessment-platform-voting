@@ -68,7 +68,7 @@ export default defineConfig({
     transactional: true,
     disableForeignKeys: true,
     allOrNothing: true,
-    dropTables: false,
+    dropTables: true,
     safe: false,
     snapshot: true,
     emit: 'ts',
