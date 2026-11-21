@@ -208,7 +208,7 @@ export class FeatureRequestService {
   }
 
   /**
-   * Adds the user's vote. Idempotent: voting again changes nothing.
+   * Adds the user's vote. A repeat vote is rejected and changes nothing.
    *
    * @param userId - The voting user's id.
    * @param id - The feature request id.
@@ -218,16 +218,19 @@ export class FeatureRequestService {
     const voteCount = await this.em.transactional(async (em) => {
       const feature = await this.lockForVoting(em, id);
 
+      // The insert result decides, so concurrent repeats can't both count.
       const inserted = await em
         .createQueryBuilder(Vote)
         .insert({ user: userId, featureRequest: id })
         .onConflict(['user', 'featureRequest'])
         .ignore()
         .execute();
-      if (inserted.affectedRows > 0) {
-        feature.voteCount += 1;
-        await em.flush();
+      if (inserted.affectedRows === 0) {
+        throw new ConflictException('You have already voted for this request');
       }
+
+      feature.voteCount += 1;
+      await em.flush();
 
       return feature.voteCount;
     });

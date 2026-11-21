@@ -193,7 +193,7 @@ export class FeatureRequestController {
   @ResponseMessage('Voted')
   @CustomApiResponse(
     'Vote',
-    'Idempotent. Rejected with 409 for merged, released or declined requests.',
+    'One vote per user. 409 if already voted, or for merged, released or declined requests.',
     HttpStatus.OK,
   )
   vote(
