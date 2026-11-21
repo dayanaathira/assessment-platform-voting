@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { STATUS_ID } from '../../common/const/status.const';
+import { CLOSED_STATUS_IDS, STATUS_ID } from '../../common/const/status.const';
 import { businessDayRange } from '../../common/utils/date.util';
 import { containsPattern } from '../../common/utils/query.util';
 import { User } from '../user/entities/user.entity';
@@ -21,6 +21,7 @@ import { DefaultDto } from './dtos/default.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
 import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dto';
+import { VoteResultDto } from './dtos/vote-result.dto';
 import { Comment } from './entities/comment.entity';
 import { FeatureRequest } from './entities/feature-request.entity';
 import { RequestMerge } from './entities/request-merge.entity';
@@ -102,6 +103,7 @@ export class FeatureRequestService {
         items: features.map((f) => ({
           ...wrap(f).toObject(),
           hasVoted: voted.has(f.id),
+          canVote: !CLOSED_STATUS_IDS.includes(f.status.id),
         })),
         total,
         limit,
@@ -203,6 +205,96 @@ export class FeatureRequestService {
       updatedBy: this.em.getReference(User, userId),
     });
     await this.em.flush();
+  }
+
+  /**
+   * Adds the user's vote. Idempotent: voting again changes nothing.
+   *
+   * @param userId - The voting user's id.
+   * @param id - The feature request id.
+   * @returns The vote count and that the user has voted.
+   */
+  async vote(userId: string, id: string): Promise<VoteResultDto> {
+    const voteCount = await this.em.transactional(async (em) => {
+      const feature = await this.lockForVoting(em, id);
+
+      const inserted = await em
+        .createQueryBuilder(Vote)
+        .insert({ user: userId, featureRequest: id })
+        .onConflict(['user', 'featureRequest'])
+        .ignore()
+        .execute();
+      if (inserted.affectedRows > 0) {
+        feature.voteCount += 1;
+        await em.flush();
+      }
+
+      return feature.voteCount;
+    });
+
+    return { voteCount, hasVoted: true };
+  }
+
+  /**
+   * Removes the user's vote. Idempotent: unvoting without a vote changes
+   * nothing.
+   *
+   * @param userId - The voting user's id.
+   * @param id - The feature request id.
+   * @returns The vote count and that the user hasn't voted.
+   */
+  async unvote(userId: string, id: string): Promise<VoteResultDto> {
+    const voteCount = await this.em.transactional(async (em) => {
+      const feature = await this.lockForVoting(em, id);
+
+      const deleted = await em.nativeDelete(
+        Vote,
+        { user: userId, featureRequest: id },
+        { filters: false },
+      );
+      if (deleted > 0) {
+        feature.voteCount -= 1;
+        await em.flush();
+      }
+
+      return feature.voteCount;
+    });
+
+    return { voteCount, hasVoted: false };
+  }
+
+  /**
+   * Locks the request row so concurrent votes and merges queue up instead of
+   * racing the count, then checks the request still takes votes.
+   *
+   * @param em - The transaction's entity manager.
+   * @param id - The feature request id.
+   * @returns The locked request.
+   */
+  private async lockForVoting(
+    em: EntityManager,
+    id: string,
+  ): Promise<FeatureRequest> {
+    const feature = await em.findOne(
+      FeatureRequest,
+      { id },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    if (!feature) {
+      throw new NotFoundException('Feature request not found');
+    }
+
+    const merged = await em.count(RequestMerge, { sourceRequest: id });
+    if (merged > 0) {
+      throw new ConflictException('Merged requests cannot be voted on');
+    }
+    if (CLOSED_STATUS_IDS.includes(feature.status.id)) {
+      throw new ConflictException(
+        'Voting is closed for released or declined requests',
+      );
+    }
+
+    return feature;
   }
 
   /**
@@ -359,6 +451,7 @@ export class FeatureRequestService {
       {
         ...wrap(feature).toObject(),
         hasVoted: votes > 0,
+        canVote: !CLOSED_STATUS_IDS.includes(feature.status.id),
         mergedIntoId: mergedInto?.targetRequest.id,
         mergedFrom: mergedFrom.map((m) => ({
           id: m.sourceRequest.id,

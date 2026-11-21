@@ -6,3 +6,9 @@ export const STATUS_ID = {
   RELEASED: 4,
   DECLINED: 5,
 } as const;
+
+/** Statuses where a decision is made, so votes can no longer change. */
+export const CLOSED_STATUS_IDS: readonly number[] = [
+  STATUS_ID.RELEASED,
+  STATUS_ID.DECLINED,
+];

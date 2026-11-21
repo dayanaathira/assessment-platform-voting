@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -26,6 +27,7 @@ import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
 import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dto';
+import { VoteResultDto } from './dtos/vote-result.dto';
 import { FeatureRequestService } from './feature-request.service';
 
 @ApiTags('feature-request')
@@ -180,5 +182,43 @@ export class FeatureRequestController {
     @Query() query: DefaultFilterDto,
   ): Promise<CommentListDto> {
     return this.featureRequestService.listComments(id, query);
+  }
+
+  /**
+   * @param user - The signed-in user.
+   * @param id - The feature request id.
+   * @returns The vote count and that the user has voted.
+   */
+  @Put(':id/vote')
+  @ResponseMessage('Voted')
+  @CustomApiResponse(
+    'Vote',
+    'Idempotent. Rejected with 409 for merged, released or declined requests.',
+    HttpStatus.OK,
+  )
+  vote(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<VoteResultDto> {
+    return this.featureRequestService.vote(user.id, id);
+  }
+
+  /**
+   * @param user - The signed-in user.
+   * @param id - The feature request id.
+   * @returns The vote count and that the user hasn't voted.
+   */
+  @Delete(':id/vote')
+  @ResponseMessage('Vote removed')
+  @CustomApiResponse(
+    'Remove vote',
+    'Idempotent. Rejected with 409 for merged, released or declined requests.',
+    HttpStatus.OK,
+  )
+  unvote(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<VoteResultDto> {
+    return this.featureRequestService.unvote(user.id, id);
   }
 }

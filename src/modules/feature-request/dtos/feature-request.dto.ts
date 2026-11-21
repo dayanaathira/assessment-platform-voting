@@ -44,6 +44,10 @@ export class FeatureRequestDto extends DefaultAuditLogDto {
   @Expose()
   hasVoted!: boolean;
 
+  // False once the request is Released or Declined.
+  @Expose()
+  canVote!: boolean;
+
   // Set when this request was merged away; the client redirects to it.
   @Expose()
   mergedIntoId?: string;
