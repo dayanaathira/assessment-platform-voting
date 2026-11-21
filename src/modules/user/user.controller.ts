@@ -7,7 +7,7 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
@@ -16,6 +16,7 @@ import { UserDetailDto } from './dtos/user-detail.dto';
 import { UserService } from './user.service';
 
 @ApiTags('user')
+@ApiBearerAuth()
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}

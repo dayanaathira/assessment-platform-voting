@@ -8,7 +8,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/types/auth-user.type';
@@ -22,6 +22,7 @@ import { UpdateStatusDto } from './dtos/update-status.dto';
 import { MergeService } from './merge.service';
 
 @ApiTags('admin')
+@ApiBearerAuth()
 @Controller('admin/feature-request')
 export class AdminController {
   constructor(

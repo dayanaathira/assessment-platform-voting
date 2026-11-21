@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -29,6 +29,7 @@ import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dt
 import { FeatureRequestService } from './feature-request.service';
 
 @ApiTags('feature-request')
+@ApiBearerAuth()
 @Controller('feature-request')
 export class FeatureRequestController {
   constructor(private readonly featureRequestService: FeatureRequestService) {}

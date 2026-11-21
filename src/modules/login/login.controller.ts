@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { AuthUser } from '../../common/types/auth-user.type';
@@ -58,6 +58,7 @@ export class LoginController {
    * @param user - The signed-in user.
    * @returns The user's id, name and roles from the access token.
    */
+  @ApiBearerAuth()
   @Get('me')
   @CustomApiResponse(
     'Current user',

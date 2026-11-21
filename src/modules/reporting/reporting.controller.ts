@@ -1,11 +1,12 @@
 import { Controller, Get, HttpStatus, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { ReportQueryDto } from './dtos/report-query.dto';
 import { ReportDto } from './dtos/report.dto';
 import { ReportingService } from './reporting.service';
 
 @ApiTags('admin')
+@ApiBearerAuth()
 @Controller('admin/reporting')
 export class ReportingController {
   constructor(private readonly reportingService: ReportingService) {}
