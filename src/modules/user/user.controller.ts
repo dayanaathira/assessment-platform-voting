@@ -7,9 +7,10 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiForbiddenResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { ROLE } from './user.const';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { AddUserDto } from './dtos/add-user.dto';
 import { UserDetailDto } from './dtos/user-detail.dto';
@@ -17,6 +18,8 @@ import { UserService } from './user.service';
 
 @ApiTags('user')
 @ApiBearerAuth()
+@ApiForbiddenResponse({ description: 'Admin role required.' })
+@Roles(ROLE.ADMIN)
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -25,8 +28,6 @@ export class UserController {
    * @param dto - Name, username, password and role.
    * @returns The created user.
    */
-  // Open until RolesGuard lands, so the first users can be created; then admin only.
-  @Public()
   @Post()
   @ResponseMessage('User created')
   @CustomApiResponse(

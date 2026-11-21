@@ -8,7 +8,9 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiForbiddenResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { ROLE } from '../user/user.const';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/types/auth-user.type';
@@ -23,6 +25,8 @@ import { MergeService } from './merge.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
+@ApiForbiddenResponse({ description: 'Admin role required.' })
+@Roles(ROLE.ADMIN)
 @Controller('admin/feature-request')
 export class AdminController {
   constructor(

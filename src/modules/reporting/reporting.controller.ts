@@ -1,5 +1,7 @@
 import { Controller, Get, HttpStatus, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiForbiddenResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { ROLE } from '../user/user.const';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { ReportQueryDto } from './dtos/report-query.dto';
 import { ReportDto } from './dtos/report.dto';
@@ -7,6 +9,8 @@ import { ReportingService } from './reporting.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
+@ApiForbiddenResponse({ description: 'Admin role required.' })
+@Roles(ROLE.ADMIN)
 @Controller('admin/reporting')
 export class ReportingController {
   constructor(private readonly reportingService: ReportingService) {}
