@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { AddUserDto } from './dtos/add-user.dto';
 import { UserDetailDto } from './dtos/user-detail.dto';
@@ -23,6 +24,8 @@ export class UserController {
    * @param dto - Name, username, password and role.
    * @returns The created user.
    */
+  // Open until RolesGuard lands, so the first users can be created; then admin only.
+  @Public()
   @Post()
   @ResponseMessage('User created')
   @CustomApiResponse(

@@ -13,6 +13,9 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
+import type { AuthUser } from '../../common/types/auth-user.type';
 import { DefaultFilterDto } from '../../common/dtos/default-filter.dto';
 import { AddCommentDto } from './dtos/add-comment.dto';
 import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
@@ -42,9 +45,10 @@ export class FeatureRequestController {
     HttpStatus.OK,
   )
   list(
+    @CurrentUser() user: AuthUser,
     @Query() query: ListFeatureRequestQueryDto,
   ): Promise<FeatureRequestListDto> {
-    return this.featureRequestService.list('', query);
+    return this.featureRequestService.list(user.id, query);
   }
 
   /**
@@ -59,14 +63,18 @@ export class FeatureRequestController {
     'Creates a request authored by the current user, starting as Under Review.',
     HttpStatus.CREATED,
   )
-  create(@Body() dto: AddFeatureRequestDto): Promise<FeatureRequestDto> {
-    return this.featureRequestService.create('', dto);
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: AddFeatureRequestDto,
+  ): Promise<FeatureRequestDto> {
+    return this.featureRequestService.create(user.id, dto);
   }
 
   /**
    * @returns Every status, in id order.
    */
   // Must stay above @Get(':id'), or "status" is matched as an id.
+  @Public()
   @Get('status')
   @CustomApiResponse(
     'List statuses',
@@ -88,8 +96,11 @@ export class FeatureRequestController {
     'Returns the request with hasVoted and its merge links.',
     HttpStatus.OK,
   )
-  view(@Param('id', ParseUUIDPipe) id: string): Promise<FeatureRequestDto> {
-    return this.featureRequestService.view('', id);
+  view(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<FeatureRequestDto> {
+    return this.featureRequestService.view(user.id, id);
   }
 
   /**
@@ -106,10 +117,11 @@ export class FeatureRequestController {
     HttpStatus.OK,
   )
   edit(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: EditFeatureRequestDto,
   ): Promise<FeatureRequestDto> {
-    return this.featureRequestService.edit('', id, dto);
+    return this.featureRequestService.edit(user.id, id, dto);
   }
 
   /**
@@ -124,8 +136,11 @@ export class FeatureRequestController {
     'Author only. Soft delete; merged requests cannot be deleted.',
     HttpStatus.OK,
   )
-  delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.featureRequestService.delete('', id);
+  delete(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.featureRequestService.delete(user.id, id);
   }
 
   /**
@@ -141,10 +156,11 @@ export class FeatureRequestController {
     HttpStatus.CREATED,
   )
   createComment(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddCommentDto,
   ): Promise<CommentDto> {
-    return this.featureRequestService.createComment('', id, dto);
+    return this.featureRequestService.createComment(user.id, id, dto);
   }
 
   /**

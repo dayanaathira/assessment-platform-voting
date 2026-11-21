@@ -3,6 +3,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { HealthService } from './health.service';
 import { RawResponse } from '../../common/decorators/response.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * Liveness and readiness, kept separate on purpose.
@@ -13,6 +14,7 @@ import { RawResponse } from '../../common/decorators/response.decorator';
  */
 @ApiExcludeController()
 @RawResponse()
+@Public()
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

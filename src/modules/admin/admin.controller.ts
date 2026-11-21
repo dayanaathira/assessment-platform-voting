@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthUser } from '../../common/types/auth-user.type';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { FeatureRequestDto } from '../feature-request/dtos/feature-request.dto';
 import { RequestMergeDto } from '../feature-request/dtos/request-merge.dto';
@@ -40,10 +42,11 @@ export class AdminController {
     HttpStatus.OK,
   )
   updateStatus(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStatusDto,
   ): Promise<FeatureRequestDto> {
-    return this.adminService.updateStatus('', id, dto);
+    return this.adminService.updateStatus(user.id, id, dto);
   }
 
   /**
@@ -59,10 +62,11 @@ export class AdminController {
     HttpStatus.OK,
   )
   setResponse(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: OfficialResponseDto,
   ): Promise<FeatureRequestDto> {
-    return this.adminService.setResponse('', id, dto);
+    return this.adminService.setResponse(user.id, id, dto);
   }
 
   /**
@@ -78,9 +82,10 @@ export class AdminController {
     HttpStatus.CREATED,
   )
   merge(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MergeRequestDto,
   ): Promise<RequestMergeDto> {
-    return this.mergeService.merge('', id, dto);
+    return this.mergeService.merge(user.id, id, dto);
   }
 }
