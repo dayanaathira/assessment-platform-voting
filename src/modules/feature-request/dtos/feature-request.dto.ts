@@ -11,6 +11,15 @@ export class MergedRequestDto {
   title!: string;
 }
 
+export class MergedIntoDto extends MergedRequestDto {
+  @Expose()
+  mergedAt!: Date;
+
+  @Expose()
+  @Type(() => UserDto)
+  mergedBy!: UserDto;
+}
+
 export class FeatureRequestDto extends DefaultAuditLogDto {
   @Expose()
   id!: string;
@@ -48,9 +57,10 @@ export class FeatureRequestDto extends DefaultAuditLogDto {
   @Expose()
   canVote!: boolean;
 
-  // Set when this request was merged away; the client redirects to it.
+  // The request this one was merged into, or null; the client links to it.
   @Expose()
-  mergedIntoId?: string;
+  @Type(() => MergedIntoDto)
+  mergedInto!: MergedIntoDto | null;
 
   @Expose()
   @Type(() => MergedRequestDto)

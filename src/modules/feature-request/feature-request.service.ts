@@ -437,7 +437,19 @@ export class FeatureRequestService {
         },
       ),
       this.em.count(Vote, { user: userId, featureRequest: id }),
-      this.em.findOne(RequestMerge, { sourceRequest: id }),
+      this.em.findOne(
+        RequestMerge,
+        { sourceRequest: id },
+        {
+          populate: ['targetRequest', 'createdBy'],
+          fields: [
+            'createdAt',
+            'targetRequest.id',
+            'targetRequest.title',
+            ...USER_FIELDS.map((f) => `createdBy.${f}` as const),
+          ],
+        },
+      ),
       this.em.find(
         RequestMerge,
         { targetRequest: id },
@@ -455,7 +467,12 @@ export class FeatureRequestService {
         ...wrap(feature).toObject(),
         hasVoted: votes > 0,
         canVote: !CLOSED_STATUS_IDS.includes(feature.status.id),
-        mergedIntoId: mergedInto?.targetRequest.id,
+        mergedInto: mergedInto && {
+          id: mergedInto.targetRequest.id,
+          title: mergedInto.targetRequest.title,
+          mergedAt: mergedInto.createdAt,
+          mergedBy: wrap(mergedInto.createdBy).toObject(),
+        },
         mergedFrom: mergedFrom.map((m) => ({
           id: m.sourceRequest.id,
           title: m.sourceRequest.title,
