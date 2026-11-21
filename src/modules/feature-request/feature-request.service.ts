@@ -1,4 +1,4 @@
-import { EntityManager, wrap } from '@mikro-orm/postgresql';
+import { EntityManager, LockMode, wrap } from '@mikro-orm/postgresql';
 import {
   ConflictException,
   ForbiddenException,
@@ -10,11 +10,16 @@ import { STATUS_ID } from '../../common/const/status.const';
 import { nextDay, startOfBusinessDay } from '../../common/utils/date.util';
 import { containsPattern } from '../../common/utils/query.util';
 import { User } from '../user/entities/user.entity';
+import { AddCommentDto } from './dtos/add-comment.dto';
 import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
+import { DefaultFilterDto } from '../../common/dtos/default-filter.dto';
+import { CommentDto } from './dtos/comment.dto';
+import { CommentListDto } from './dtos/comment-list.dto';
 import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
 import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dto';
+import { Comment } from './entities/comment.entity';
 import { FeatureRequest } from './entities/feature-request.entity';
 import { RequestMerge } from './entities/request-merge.entity';
 import { Status } from './entities/status.entity';
@@ -189,6 +194,126 @@ export class FeatureRequestService {
       updatedBy: this.em.getReference(User, userId),
     });
     await this.em.flush();
+  }
+
+  /**
+   * Adds a comment and bumps the request's comment count in one transaction.
+   * The request row is locked so concurrent comments and merges can't race the
+   * count.
+   *
+   * @param userId - The commenting user's id.
+   * @param featureRequestId - The feature request id.
+   * @param dto - The comment body.
+   * @returns The created comment.
+   */
+  async createComment(
+    userId: string,
+    featureRequestId: string,
+    dto: AddCommentDto,
+  ): Promise<CommentDto> {
+    const comment = await this.em.transactional(async (em) => {
+      const feature = await em.findOne(
+        FeatureRequest,
+        { id: featureRequestId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      if (!feature) {
+        throw new NotFoundException('Feature request not found');
+      }
+
+      const merged = await em.count(RequestMerge, {
+        sourceRequest: featureRequestId,
+      });
+      if (merged > 0) {
+        throw new ConflictException(
+          "Comments can't be added to a merged request",
+        );
+      }
+
+      // Loaded so the response carries the user's name, not just the id.
+      const user = await em.findOne(User, userId, { fields: USER_FIELDS });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const userRef = em.getReference(User, userId);
+      const created = em.create(Comment, {
+        user: userRef,
+        featureRequest: feature,
+        body: dto.body,
+        createdBy: userRef,
+      });
+      feature.commentCount += 1;
+      await em.flush();
+
+      return created;
+    });
+
+    return plainToInstance(
+      CommentDto,
+      { ...wrap(comment).toObject(), featureRequestId },
+      { excludeExtraneousValues: true },
+    );
+  }
+
+  /**
+   * Lists a request's comments, newest first.
+   *
+   * @param featureRequestId - The feature request id.
+   * @param query - Paging.
+   * @returns One page of comments and the total count.
+   */
+  async listComments(
+    featureRequestId: string,
+    query: DefaultFilterDto,
+  ): Promise<CommentListDto> {
+    const { limit, offset } = query;
+    const [exists, comments, total] = await Promise.all([
+      this.em.count(FeatureRequest, { id: featureRequestId }),
+      this.em.find(
+        Comment,
+        { featureRequest: featureRequestId },
+        {
+          populate: ['user'],
+          fields: [
+            'id',
+            'body',
+            'createdAt',
+            'updatedAt',
+            'user.id',
+            'user.name',
+            'user.username',
+          ],
+          orderBy: { createdAt: 'desc', id: 'desc' },
+          limit,
+          offset,
+        },
+      ),
+      // The request check above covers soft deletes, so skip the filter join.
+      this.em.count(
+        Comment,
+        { featureRequest: featureRequestId },
+        { filters: false },
+      ),
+    ]);
+
+    if (!exists) {
+      throw new NotFoundException('Feature request not found');
+    }
+
+    return plainToInstance(
+      CommentListDto,
+      {
+        items: comments.map((c) => ({
+          ...wrap(c).toObject(),
+          featureRequestId,
+        })),
+        total,
+        limit,
+        offset,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**

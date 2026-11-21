@@ -13,7 +13,11 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { CustomApiResponse } from '../../common/utils/api-response.util';
 import { ResponseMessage } from '../../common/decorators/response.decorator';
+import { DefaultFilterDto } from '../../common/dtos/default-filter.dto';
+import { AddCommentDto } from './dtos/add-comment.dto';
 import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
+import { CommentDto } from './dtos/comment.dto';
+import { CommentListDto } from './dtos/comment-list.dto';
 import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
 import { FeatureRequestDto } from './dtos/feature-request.dto';
 import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
@@ -107,5 +111,42 @@ export class FeatureRequestController {
   )
   delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.featureRequestService.delete('', id);
+  }
+
+  /**
+   * @param id - The feature request id.
+   * @param dto - The comment body.
+   * @returns The created comment.
+   */
+  @Post(':id/comments')
+  @ResponseMessage('Comment added')
+  @CustomApiResponse(
+    'Add a comment',
+    'Adds a comment to the request. Merged requests cannot be commented on.',
+    HttpStatus.CREATED,
+  )
+  createComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddCommentDto,
+  ): Promise<CommentDto> {
+    return this.featureRequestService.createComment('', id, dto);
+  }
+
+  /**
+   * @param id - The feature request id.
+   * @param query - Paging.
+   * @returns One page of comments, newest first, and the total count.
+   */
+  @Get(':id/comments')
+  @CustomApiResponse(
+    'List comments',
+    'Returns the request comments newest first, paged by limit and offset.',
+    HttpStatus.OK,
+  )
+  listComments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: DefaultFilterDto,
+  ): Promise<CommentListDto> {
+    return this.featureRequestService.listComments(id, query);
   }
 }

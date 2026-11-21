@@ -1,7 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { DefaultAuditLogDto } from './default-audit-log.dto';
 import { UserDto } from '../../user/dtos/user.dto';
-import { FeatureRequestDto } from './feature-request.dto';
 
 export class CommentDto extends DefaultAuditLogDto {
   @Expose()
@@ -12,8 +11,7 @@ export class CommentDto extends DefaultAuditLogDto {
   user!: UserDto;
 
   @Expose()
-  @Type(() => FeatureRequestDto)
-  featureRequest!: FeatureRequestDto;
+  featureRequestId!: string;
 
   @Expose()
   body!: string;
