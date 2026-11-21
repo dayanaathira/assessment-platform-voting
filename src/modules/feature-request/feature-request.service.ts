@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { STATUS_ID } from '../../common/const/status.const';
-import { nextDay, startOfBusinessDay } from '../../common/utils/date.util';
+import { businessDayRange } from '../../common/utils/date.util';
 import { containsPattern } from '../../common/utils/query.util';
 import { User } from '../user/entities/user.entity';
 import { USER_FIELDS } from '../user/user.const';
@@ -44,6 +44,7 @@ export class FeatureRequestService {
   ): Promise<FeatureRequestListDto> {
     const { q, status, fromDate, toDate, sort, limit, offset } = query;
     const pattern = q ? containsPattern(q) : undefined;
+    const createdAt = businessDayRange(fromDate, toDate);
 
     const qb = this.em
       .createQueryBuilder(FeatureRequest, 'fr')
@@ -60,12 +61,7 @@ export class FeatureRequestService {
         }),
         merges: { $none: {} },
         ...(status && { status }),
-        ...((fromDate || toDate) && {
-          createdAt: {
-            ...(fromDate && { $gte: startOfBusinessDay(fromDate) }),
-            ...(toDate && { $lt: startOfBusinessDay(nextDay(toDate)) }),
-          },
-        }),
+        ...(createdAt && { createdAt }),
       })
       .orderBy(
         sort === 'new'

@@ -19,6 +19,27 @@ export function startOfBusinessDay(date: string): string {
 }
 
 /**
+ * Builds a filter for a timestamp falling within whole business days.
+ *
+ * @param fromDate - First day, inclusive (`YYYY-MM-DD`).
+ * @param toDate - Last day, inclusive (`YYYY-MM-DD`).
+ * @returns The `$gte`/`$lt` condition, or undefined when neither is set.
+ */
+export function businessDayRange(
+  fromDate?: string,
+  toDate?: string,
+): { $gte?: string; $lt?: string } | undefined {
+  if (!fromDate && !toDate) {
+    return undefined;
+  }
+
+  return {
+    ...(fromDate && { $gte: startOfBusinessDay(fromDate) }),
+    ...(toDate && { $lt: startOfBusinessDay(nextDay(toDate)) }),
+  };
+}
+
+/**
  * @param date - A `DD-MM-YYYY` API date.
  * @returns The date as `YYYY-MM-DD`, or null if it isn't in API format.
  */

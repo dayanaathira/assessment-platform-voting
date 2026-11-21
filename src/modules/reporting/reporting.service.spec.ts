@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EntityManager } from '@mikro-orm/postgresql';
 import { ReportingService } from './reporting.service';
 
 describe('ReportingService', () => {
@@ -6,7 +7,7 @@ describe('ReportingService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ReportingService],
+      providers: [ReportingService, { provide: EntityManager, useValue: {} }],
     }).compile();
 
     service = module.get<ReportingService>(ReportingService);
