@@ -85,6 +85,10 @@ export const envSchema = z
     JWT_EXPIRES_IN: duration.default('15m'),
     JWT_REFRESH_SECRET: z.string().min(32),
     JWT_REFRESH_EXPIRES_IN: duration.default('7d'),
+
+    // Only `npm run seed` reads these; the seeder fails if they're missing.
+    SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+    SEED_USER_PASSWORD: z.string().min(8).optional(),
   })
   .refine((env) => env.JWT_SECRET !== env.JWT_REFRESH_SECRET, {
     message: 'must differ from JWT_SECRET',

@@ -9,14 +9,15 @@ import { EntityManager } from '@mikro-orm/postgresql';
  * @param entityManager - Entity manager to seed with.
  * @param entityClass - Entity to seed.
  * @param rows - Rows to insert.
- * @param conflictOn - Unique property that identifies an existing row.
+ * @param conflictOn - Unique property, or properties, that identify an
+ *   existing row.
  * @returns Resolves once the insert has run.
  */
 export async function seedIfMissing<T extends { id: number | string }>(
   entityManager: EntityManager,
   entityClass: new () => T,
   rows: RequiredEntityData<T>[],
-  conflictOn: keyof T & string = 'id',
+  conflictOn: (keyof T & string) | (keyof T & string)[] = 'id',
 ): Promise<void> {
   if (rows.length === 0) {
     return;

@@ -18,6 +18,7 @@ import { UserModule } from '../user/user.module';
 import { LoginModule } from '../login/login.module';
 import { StatusSeeder } from '../../common/seeds/status.seeder';
 import { RoleSeeder } from '../../common/seeds/role.seeder';
+import { UserSeeder } from '../../common/seeds/user.seeder';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { RoleSeeder } from '../../common/seeds/role.seeder';
       validate: validateEnv,
     }),
     WinstonLoggerModule.forRoot(SERVICE_NAME),
-    DbSeederModule.forRoot([StatusSeeder, RoleSeeder]),
+    DbSeederModule.forRoot([StatusSeeder, RoleSeeder, UserSeeder]),
     HealthModule,
     FeatureRequestModule,
     AdminModule,
