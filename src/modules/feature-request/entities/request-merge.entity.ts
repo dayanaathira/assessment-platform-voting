@@ -19,7 +19,8 @@ const RequestMergeSchema = defineEntity({
       .primary()
       .onCreate(() => randomUUID()),
     // Unique: a request can only be merged once.
-    sourceRequest: () => p.manyToOne(FeatureRequest).unique(),
+    sourceRequest: () =>
+      p.manyToOne(FeatureRequest).inversedBy('merges').unique(),
     targetRequest: () => p.manyToOne(FeatureRequest).index(),
     createdBy: () => p.manyToOne(User).fieldName('created_by'),
     votesMoved: p.integer(),

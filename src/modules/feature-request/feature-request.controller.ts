@@ -1,4 +1,111 @@
-import { Controller } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { CustomApiResponse } from '../../common/utils/api-response.util';
+import { ResponseMessage } from '../../common/decorators/response.decorator';
+import { AddFeatureRequestDto } from './dtos/add-feature-request.dto';
+import { EditFeatureRequestDto } from './dtos/edit-feature-request.dto';
+import { FeatureRequestDto } from './dtos/feature-request.dto';
+import { FeatureRequestListDto } from './dtos/feature-request-list.dto';
+import { ListFeatureRequestQueryDto } from './dtos/list-feature-request-query.dto';
+import { FeatureRequestService } from './feature-request.service';
 
+@ApiTags('feature-request')
 @Controller('feature-request')
-export class FeatureRequestController {}
+export class FeatureRequestController {
+  constructor(private readonly featureRequestService: FeatureRequestService) {}
+
+  /**
+   * @param req - The request, carrying the authenticated user.
+   * @param query - Search, status, created-date range, sort and paging.
+   * @returns One page of requests and the total match count.
+   */
+  @Get()
+  @CustomApiResponse(
+    'List feature requests',
+    'Excludes merged and deleted requests. Filters by search text, status and created date (DD-MM-YYYY); sorts by votes or newest.',
+    HttpStatus.OK,
+  )
+  list(
+    @Query() query: ListFeatureRequestQueryDto,
+  ): Promise<FeatureRequestListDto> {
+    return this.featureRequestService.list('', query);
+  }
+
+  /**
+   * @param req - The request, carrying the authenticated user.
+   * @param dto - Title and description.
+   * @returns The created request.
+   */
+  @Post()
+  @ResponseMessage('Feature request created')
+  @CustomApiResponse(
+    'Create a feature request',
+    'Creates a request authored by the current user, starting as Under Review.',
+    HttpStatus.CREATED,
+  )
+  create(@Body() dto: AddFeatureRequestDto): Promise<FeatureRequestDto> {
+    return this.featureRequestService.create('', dto);
+  }
+
+  /**
+   * @param req - The request, carrying the authenticated user.
+   * @param id - The feature request id.
+   * @returns The request.
+   */
+  @Get(':id')
+  @CustomApiResponse(
+    'View a feature request',
+    'Returns the request with hasVoted and its merge links.',
+    HttpStatus.OK,
+  )
+  view(@Param('id', ParseUUIDPipe) id: string): Promise<FeatureRequestDto> {
+    return this.featureRequestService.view('', id);
+  }
+
+  /**
+   * @param req - The request, carrying the authenticated user.
+   * @param id - The feature request id.
+   * @param dto - Fields to change.
+   * @returns The updated request.
+   */
+  @Patch(':id')
+  @ResponseMessage('Feature request updated')
+  @CustomApiResponse(
+    'Edit a feature request',
+    'Author only. Merged requests cannot be edited.',
+    HttpStatus.OK,
+  )
+  edit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EditFeatureRequestDto,
+  ): Promise<FeatureRequestDto> {
+    return this.featureRequestService.edit('', id, dto);
+  }
+
+  /**
+   * @param req - The request, carrying the authenticated user.
+   * @param id - The feature request id.
+   * @returns Resolves once the request is soft-deleted.
+   */
+  @Delete(':id')
+  @ResponseMessage('Feature request deleted')
+  @CustomApiResponse(
+    'Delete a feature request',
+    'Author only. Soft delete; merged requests cannot be deleted.',
+    HttpStatus.OK,
+  )
+  delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.featureRequestService.delete('', id);
+  }
+}

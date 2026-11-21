@@ -10,6 +10,9 @@ import { DbSeederModule } from '../../common/seeds/db-seeder.module';
 import { SERVICE_NAME } from '../../app.constants';
 import { StartupService } from '../../startup.service';
 import { HealthModule } from '../health/health.module';
+import { FeatureRequestModule } from '../feature-request/feature-request.module';
+import { StatusSeeder } from '../../common/seeds/status.seeder';
+import { RoleSeeder } from '../../common/seeds/role.seeder';
 
 @Module({
   imports: [
@@ -18,8 +21,9 @@ import { HealthModule } from '../health/health.module';
       isGlobal: true,
     }),
     WinstonLoggerModule.forRoot(SERVICE_NAME),
-    DbSeederModule.forRoot([]),
+    DbSeederModule.forRoot([StatusSeeder, RoleSeeder]),
     HealthModule,
+    FeatureRequestModule,
   ],
   controllers: [AppController],
   providers: [AppService, StartupService, AllExceptionsFilter],

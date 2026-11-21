@@ -2,6 +2,7 @@ import { Controller, Get, Res, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { HealthService } from './health.service';
+import { RawResponse } from '../../common/decorators/response.decorator';
 
 /**
  * Liveness and readiness, kept separate on purpose.
@@ -11,6 +12,7 @@ import { HealthService } from './health.service';
  * renamed or the API is versioned.
  */
 @ApiExcludeController()
+@RawResponse()
 @Controller({ version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

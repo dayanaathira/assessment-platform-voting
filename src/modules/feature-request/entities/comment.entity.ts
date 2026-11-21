@@ -15,6 +15,7 @@ const CommentSchema = defineEntity({
     user: () => p.manyToOne(User),
     featureRequest: () => p.manyToOne(FeatureRequest).inversedBy('comments'),
     body: p.string().type('text'),
+    createdBy: () => p.manyToOne(User).fieldName('created_by').nullable(),
     createdAt: p
       .datetime()
       .defaultRaw('now()')
@@ -24,6 +25,7 @@ const CommentSchema = defineEntity({
       .defaultRaw('now()')
       .onCreate(() => new Date())
       .onUpdate(() => new Date()),
+    updatedBy: () => p.manyToOne(User).fieldName('updated_by').nullable(),
   }),
 });
 

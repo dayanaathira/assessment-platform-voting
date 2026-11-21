@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EntityManager } from '@mikro-orm/postgresql';
 import { FeatureRequestService } from './feature-request.service';
 
 describe('FeatureRequestService', () => {
@@ -6,7 +7,10 @@ describe('FeatureRequestService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [FeatureRequestService],
+      providers: [
+        FeatureRequestService,
+        { provide: EntityManager, useValue: {} },
+      ],
     }).compile();
 
     service = module.get<FeatureRequestService>(FeatureRequestService);

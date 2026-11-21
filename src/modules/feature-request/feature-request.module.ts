@@ -3,7 +3,7 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { FeatureRequestService } from './feature-request.service';
 import { FeatureRequestController } from './feature-request.controller';
 import { FeatureRequest } from './entities/feature-request.entity';
-import { Comment } from './entities/comments.entity';
+import { Comment } from './entities/comment.entity';
 import { Vote } from './entities/votes.entity';
 import { RequestMerge } from './entities/request-merge.entity';
 import { Status } from './entities/status.entity';
