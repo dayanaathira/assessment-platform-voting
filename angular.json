@@ -67,6 +67,11 @@
                   "maximumError": "8kB"
                 }
               ],
+              "optimization": {
+                "scripts": true,
+                "styles": { "minify": true, "inlineCritical": false },
+                "fonts": true
+              },
               "outputHashing": "all"
             },
             "development": {
@@ -79,6 +84,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.mjs"
+          },
           "configurations": {
             "production": {
               "buildTarget": "web:build:production"
@@ -88,6 +96,14 @@
             }
           },
           "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "runner": "vitest",
+            "buildTarget": "::development"
+          }
         }
       }
     }

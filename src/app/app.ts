@@ -1,12 +1,15 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from './core/auth.service';
+import { ConfirmDialog } from './shared/confirm-dialog';
 
 @Component({
-  imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.css',
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialog],
   templateUrl: './app.html',
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected readonly title = signal('web');
+  protected readonly auth = inject(AuthService);
 }
