@@ -1,0 +1,41 @@
+server {
+  listen 8080;
+  root /usr/share/nginx/html;
+  index index.html;
+  server_tokens off;
+
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+
+  # Inherited by every location below, since none of them use add_header.
+  # style-src needs 'unsafe-inline' because Angular injects component styles
+  # as <style> tags; scripts stay 'self' only.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+  # API: the browser stays on one origin and nginx forwards to the api
+  # container, the same path the dev proxy uses. Rate limiting belongs here
+  # or at the ingress, not in the app.
+  location /feature-voting/ {
+    proxy_pass http://${API_UPSTREAM};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # Hashed bundle names change on every build, so they can be cached for a year.
+  location ~* \.(?:js|css|ico|png|svg|woff2?)$ {
+    expires 1y;
+    try_files $uri =404;
+  }
+
+  # SPA: unknown paths (deep links, refresh) get index.html. It is never
+  # cached, so a new deploy shows up straight away.
+  location / {
+    expires -1;
+    try_files $uri $uri/ /index.html;
+  }
+}

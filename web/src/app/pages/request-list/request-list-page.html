@@ -1,0 +1,109 @@
+<div class="page-head">
+  <h1>Feature requests</h1>
+  <a class="btn btn-primary" routerLink="/feature-requests/new">New request</a>
+</div>
+
+<form class="card filters" role="search" [formGroup]="filters">
+  <div class="field search">
+    <label for="q">Search</label>
+    <input
+      id="q"
+      type="search"
+      formControlName="q"
+      placeholder="Title or description"
+      maxlength="100"
+    />
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" formControlName="status">
+      <option value="">All statuses</option>
+      @for (status of statuses(); track status.id) {
+        <option [value]="status.id">{{ status.name }}</option>
+      }
+    </select>
+  </div>
+  <div class="field">
+    <label for="fromDate">From</label>
+    <input
+      id="fromDate"
+      type="date"
+      formControlName="fromDate"
+      [max]="filters.controls.toDate.value"
+    />
+  </div>
+  <div class="field">
+    <label for="toDate">To</label>
+    <input
+      id="toDate"
+      type="date"
+      formControlName="toDate"
+      [min]="filters.controls.fromDate.value"
+    />
+  </div>
+  <div class="field">
+    <label for="sort">Sort by</label>
+    <select id="sort" formControlName="sort">
+      <option value="votes">Most votes</option>
+      <option value="new">Newest</option>
+    </select>
+  </div>
+  <button type="button" class="clear" (click)="clearFilters()">Clear</button>
+</form>
+
+<p class="muted count" aria-live="polite">
+  @if (!loading() && !error()) {
+    {{ total() }} {{ total() === 1 ? 'request' : 'requests' }}
+  }
+</p>
+
+@if (loading()) {
+  <p class="muted">Loading requests…</p>
+} @else if (error()) {
+  <div class="alert" role="alert">
+    {{ error() }}
+    <button type="button" (click)="retry()">Retry</button>
+  </div>
+} @else if (items().length === 0) {
+  <div class="card empty">
+    <p>No requests match these filters.</p>
+    <a routerLink="/feature-requests/new">Submit the first one</a>
+  </div>
+} @else {
+  <ul class="list">
+    @for (item of items(); track item.id) {
+      <li class="card request">
+        <app-vote-button [request]="item" (voted)="onVoted(item.id, $event)" />
+        <div class="body">
+          <h2>
+            <a [routerLink]="['/feature-requests', item.id]">{{ item.title }}</a>
+          </h2>
+          <p class="description">{{ item.description }}</p>
+          <p class="meta muted">
+            <app-status-badge [status]="item.status" />
+            <span>{{ item.createdBy.name }}</span>
+            <time [attr.datetime]="item.createdAt">{{ item.createdAt | date: 'd MMM y' }}</time>
+            <span
+              >{{ item.commentCount }} {{ item.commentCount === 1 ? 'comment' : 'comments' }}</span
+            >
+          </p>
+        </div>
+      </li>
+    }
+  </ul>
+
+  @if (totalPages() > 1) {
+    <nav class="pager" aria-label="Pagination">
+      <span class="muted">Showing {{ firstShown() }}–{{ lastShown() }} of {{ total() }}</span>
+      <div class="pager-controls">
+        <button type="button" [disabled]="page() === 1" (click)="goToPage(page() - 1)">
+          ‹ Previous
+        </button>
+        <span aria-current="page">Page {{ page() }} of {{ totalPages() }}</span>
+        <button type="button" [disabled]="page() >= totalPages()" (click)="goToPage(page() + 1)">
+          Next ›
+        </button>
+      </div>
+    </nav>
+  }
+}

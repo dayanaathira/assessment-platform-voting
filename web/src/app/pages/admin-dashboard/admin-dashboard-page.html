@@ -1,0 +1,113 @@
+<div class="page-head">
+  <h1>Admin dashboard</h1>
+  <form class="range" [formGroup]="range" aria-label="Date range">
+    <div>
+      <label for="fromDate">From</label>
+      <input
+        id="fromDate"
+        type="date"
+        formControlName="fromDate"
+        [max]="range.controls.toDate.value"
+      />
+    </div>
+    <div>
+      <label for="toDate">To</label>
+      <input
+        id="toDate"
+        type="date"
+        formControlName="toDate"
+        [min]="range.controls.fromDate.value"
+      />
+    </div>
+    <button type="button" (click)="clearRange()">All time</button>
+  </form>
+</div>
+
+@if (loading() && !report()) {
+  <p class="muted">Loading statistics…</p>
+} @else if (error()) {
+  <div class="alert" role="alert">
+    {{ error() }}
+    <button type="button" (click)="retry()">Retry</button>
+  </div>
+} @else if (report(); as r) {
+  <section class="stats" aria-label="Totals" [attr.aria-busy]="loading()">
+    <div class="card stat">
+      <span class="value">{{ r.totals.requests }}</span>
+      <span class="muted">Requests</span>
+    </div>
+    <div class="card stat">
+      <span class="value">{{ r.totals.votes }}</span>
+      <span class="muted">Votes</span>
+    </div>
+    <div class="card stat">
+      <span class="value">{{ r.totals.comments }}</span>
+      <span class="muted">Comments</span>
+    </div>
+    <div class="card stat">
+      <span class="value">{{ awaitingReview() }}</span>
+      <span class="muted">Awaiting review</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="status-heading">
+    <h2 id="status-heading">Requests by status</h2>
+    <ul class="bars">
+      @for (status of r.byStatus; track status.id) {
+        <li>
+          <span class="label">{{ status.name }}</span>
+          <span class="track" aria-hidden="true">
+            <span
+              class="bar"
+              [attr.data-status]="status.id"
+              [style.width.%]="(status.count / maxStatusCount()) * 100"
+            ></span>
+          </span>
+          <span class="count">{{ status.count }}</span>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <div class="columns">
+    <section class="card" aria-labelledby="top-heading">
+      <h2 id="top-heading">Top voted</h2>
+      @if (r.topVoted.length) {
+        <ol class="rows">
+          @for (item of r.topVoted; track item.id) {
+            <li>
+              <a [routerLink]="['/feature-requests', item.id]">{{ item.title }}</a>
+              <span class="row-meta muted">
+                @if (item.status) {
+                  <app-status-badge [status]="item.status" />
+                }
+                {{ item.voteCount }} {{ item.voteCount === 1 ? 'vote' : 'votes' }}
+              </span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="muted">No requests in this range.</p>
+      }
+    </section>
+
+    <section class="card" aria-labelledby="review-heading">
+      <h2 id="review-heading">Needs review <span class="muted small">(oldest first)</span></h2>
+      @if (r.needsReview.length) {
+        <ul class="rows">
+          @for (item of r.needsReview; track item.id) {
+            <li>
+              <a [routerLink]="['/feature-requests', item.id]">{{ item.title }}</a>
+              <span class="row-meta muted">
+                {{ item.createdBy?.name }} ·
+                <time [attr.datetime]="item.createdAt">{{ item.createdAt | date: 'd MMM y' }}</time>
+              </span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">Nothing waiting for review.</p>
+      }
+    </section>
+  </div>
+}
