@@ -54,6 +54,14 @@ Set these in `.env`:
   nginx.
 - Put TLS and rate limiting in front (a reverse proxy, load balancer or ingress).
 
+Behind nginx on the same host, also set:
+
+- `BIND_ADDR=127.0.0.1` so `WEB_PORT` and `API_PORT` only listen locally.
+  Docker publishes ports past `ufw`, so the firewall alone doesn't block them.
+- `TRUST_PROXY_HOPS=2` (host nginx + the web container's nginx) so the API
+  sees the client's real IP.
+- Point nginx at `http://127.0.0.1:8080`.
+
 Postgres is never published to the host.
 
 ## Run without Docker (development)
