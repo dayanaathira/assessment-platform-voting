@@ -72,6 +72,11 @@ export interface FeatureRequest {
   updatedAt?: string;
 }
 
+export interface FeatureRequestInput {
+  title: string;
+  description: string;
+}
+
 export type FeatureRequestSort = 'votes' | 'new';
 
 export interface FeatureRequestQuery {

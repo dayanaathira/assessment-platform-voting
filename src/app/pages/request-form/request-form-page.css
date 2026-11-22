@@ -1,0 +1,28 @@
+:host {
+  display: grid;
+  gap: 1rem;
+  max-width: 720px;
+}
+
+.back {
+  justify-self: start;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.alert {
+  margin: 0 0 1rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}

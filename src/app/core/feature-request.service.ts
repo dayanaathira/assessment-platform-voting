@@ -6,6 +6,7 @@ import {
   ApiResponse,
   Comment,
   FeatureRequest,
+  FeatureRequestInput,
   FeatureRequestQuery,
   Page,
   Status,
@@ -44,6 +45,27 @@ export class FeatureRequestService {
   get(id: string): Observable<FeatureRequest> {
     return this.http
       .get<ApiResponse<FeatureRequest>>(`${this.url}/${id}`)
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Creates a request as the signed-in user.
+   * @param body - Title and description.
+   * @returns The created request.
+   */
+  create(body: FeatureRequestInput): Observable<FeatureRequest> {
+    return this.http.post<ApiResponse<FeatureRequest>>(this.url, body).pipe(map((res) => res.data));
+  }
+
+  /**
+   * Edits a request. The API allows the author only.
+   * @param id - Feature request id.
+   * @param body - Title and description.
+   * @returns The updated request.
+   */
+  update(id: string, body: FeatureRequestInput): Observable<FeatureRequest> {
+    return this.http
+      .patch<ApiResponse<FeatureRequest>>(`${this.url}/${id}`, body)
       .pipe(map((res) => res.data));
   }
 
