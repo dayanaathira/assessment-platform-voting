@@ -4,7 +4,11 @@
   <a class="brand" routerLink="/feature-requests">Feature Voting</a>
   @if (auth.user(); as user) {
     <nav aria-label="Main">
-      <a routerLink="/feature-requests" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+      <a
+        routerLink="/feature-requests"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
         Requests
       </a>
       <a routerLink="/feature-requests/new" routerLinkActive="active">New request</a>

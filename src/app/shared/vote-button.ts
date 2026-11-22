@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { finalize } from 'rxjs';
 import { FeatureRequestService } from '../core/feature-request.service';
 import { errorMessage } from '../core/http-error';
@@ -26,7 +34,9 @@ import { FeatureRequest, VoteResult } from '../core/models';
     }
   `,
   styles: `
-    :host { display: block; }
+    :host {
+      display: block;
+    }
     .vote {
       display: flex;
       flex-direction: column;

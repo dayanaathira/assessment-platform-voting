@@ -3,15 +3,31 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
-import { catchError, combineLatest, debounceTime, EMPTY, map, merge, startWith, Subject, switchMap, tap } from 'rxjs';
+import {
+  catchError,
+  combineLatest,
+  debounceTime,
+  EMPTY,
+  map,
+  merge,
+  startWith,
+  Subject,
+  switchMap,
+  tap,
+} from 'rxjs';
+import { isoDateOrUndefined } from '../../core/api-date';
 import { FeatureRequestService } from '../../core/feature-request.service';
 import { errorMessage } from '../../core/http-error';
-import { FeatureRequest, FeatureRequestQuery, FeatureRequestSort, VoteResult } from '../../core/models';
+import {
+  FeatureRequest,
+  FeatureRequestQuery,
+  FeatureRequestSort,
+  VoteResult,
+} from '../../core/models';
 import { StatusBadge } from '../../shared/status-badge';
 import { VoteButton } from '../../shared/vote-button';
 
 const PAGE_SIZE = 20;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 @Component({
   selector: 'app-request-list-page',
@@ -139,7 +155,9 @@ export class RequestListPage {
    * @returns Nothing.
    */
   protected onVoted(id: string, result: VoteResult): void {
-    this.items.update((items) => items.map((item) => (item.id === id ? { ...item, ...result } : item)));
+    this.items.update((items) =>
+      items.map((item) => (item.id === id ? { ...item, ...result } : item)),
+    );
   }
 
   /**
@@ -169,13 +187,11 @@ export class RequestListPage {
  */
 function toQuery(params: ParamMap): FeatureRequestQuery {
   const status = Number(params.get('status'));
-  const fromDate = params.get('fromDate') ?? '';
-  const toDate = params.get('toDate') ?? '';
   return {
     q: params.get('q')?.trim() || undefined,
     status: Number.isInteger(status) && status > 0 ? status : undefined,
-    fromDate: ISO_DATE.test(fromDate) ? fromDate : undefined,
-    toDate: ISO_DATE.test(toDate) ? toDate : undefined,
+    fromDate: isoDateOrUndefined(params.get('fromDate')),
+    toDate: isoDateOrUndefined(params.get('toDate')),
     sort: params.get('sort') === 'new' ? 'new' : 'votes',
   };
 }

@@ -6,7 +6,13 @@
 <form class="card filters" role="search" [formGroup]="filters">
   <div class="field search">
     <label for="q">Search</label>
-    <input id="q" type="search" formControlName="q" placeholder="Title or description" maxlength="100" />
+    <input
+      id="q"
+      type="search"
+      formControlName="q"
+      placeholder="Title or description"
+      maxlength="100"
+    />
   </div>
   <div class="field">
     <label for="status">Status</label>
@@ -19,11 +25,21 @@
   </div>
   <div class="field">
     <label for="fromDate">From</label>
-    <input id="fromDate" type="date" formControlName="fromDate" [max]="filters.controls.toDate.value" />
+    <input
+      id="fromDate"
+      type="date"
+      formControlName="fromDate"
+      [max]="filters.controls.toDate.value"
+    />
   </div>
   <div class="field">
     <label for="toDate">To</label>
-    <input id="toDate" type="date" formControlName="toDate" [min]="filters.controls.fromDate.value" />
+    <input
+      id="toDate"
+      type="date"
+      formControlName="toDate"
+      [min]="filters.controls.fromDate.value"
+    />
   </div>
   <div class="field">
     <label for="sort">Sort by</label>
@@ -59,13 +75,17 @@
       <li class="card request">
         <app-vote-button [request]="item" (voted)="onVoted(item.id, $event)" />
         <div class="body">
-          <h2><a [routerLink]="['/feature-requests', item.id]">{{ item.title }}</a></h2>
+          <h2>
+            <a [routerLink]="['/feature-requests', item.id]">{{ item.title }}</a>
+          </h2>
           <p class="description">{{ item.description }}</p>
           <p class="meta muted">
             <app-status-badge [status]="item.status" />
             <span>{{ item.createdBy.name }}</span>
             <time [attr.datetime]="item.createdAt">{{ item.createdAt | date: 'd MMM y' }}</time>
-            <span>{{ item.commentCount }} {{ item.commentCount === 1 ? 'comment' : 'comments' }}</span>
+            <span
+              >{{ item.commentCount }} {{ item.commentCount === 1 ? 'comment' : 'comments' }}</span
+            >
           </p>
         </div>
       </li>

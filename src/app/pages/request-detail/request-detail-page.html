@@ -8,7 +8,8 @@
   @if (mergeResult(); as m) {
     <p class="success" role="status">
       Merged. {{ m.votesMoved }} new {{ m.votesMoved === 1 ? 'vote' : 'votes' }} and
-      {{ m.commentsMoved }} {{ m.commentsMoved === 1 ? 'comment' : 'comments' }} moved to the target.
+      {{ m.commentsMoved }} {{ m.commentsMoved === 1 ? 'comment' : 'comments' }} moved to the
+      target.
     </p>
   }
 
@@ -44,7 +45,9 @@
         <h2>Merged into this request</h2>
         <ul>
           @for (source of r.mergedFrom; track source.id) {
-            <li><a [routerLink]="['/feature-requests', source.id]">{{ source.title }}</a></li>
+            <li>
+              <a [routerLink]="['/feature-requests', source.id]">{{ source.title }}</a>
+            </li>
           }
         </ul>
       </div>
@@ -70,7 +73,10 @@
       <p class="muted small">
         {{ r.officialResponseBy?.name }}
         @if (r.officialResponseAt) {
-          · <time [attr.datetime]="r.officialResponseAt">{{ r.officialResponseAt | date: 'd MMM y' }}</time>
+          ·
+          <time [attr.datetime]="r.officialResponseAt">{{
+            r.officialResponseAt | date: 'd MMM y'
+          }}</time>
         }
       </p>
     </section>

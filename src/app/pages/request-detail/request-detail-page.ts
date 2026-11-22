@@ -1,5 +1,13 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, combineLatest, EMPTY, map, startWith, Subject, switchMap, tap } from 'rxjs';
@@ -95,7 +103,9 @@ export class RequestDetailPage {
    * @returns Nothing.
    */
   protected onCommentAdded(): void {
-    this.request.update((request) => request && { ...request, commentCount: request.commentCount + 1 });
+    this.request.update(
+      (request) => request && { ...request, commentCount: request.commentCount + 1 },
+    );
   }
 
   /**

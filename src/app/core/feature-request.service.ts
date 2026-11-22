@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable, shareReplay } from 'rxjs';
 import { API_URL } from './api';
+import { toApiDate } from './api-date';
 import {
   ApiResponse,
   Comment,
@@ -145,17 +146,4 @@ function toParams(query: FeatureRequestQuery): HttpParams {
     }
   }
   return params;
-}
-
-/**
- * Converts yyyy-mm-dd (what date inputs give) to DD-MM-YYYY.
- * @param date - ISO date, or undefined.
- * @returns The API date, or undefined.
- */
-function toApiDate(date?: string): string | undefined {
-  if (!date) {
-    return undefined;
-  }
-  const [year, month, day] = date.split('-');
-  return `${day}-${month}-${year}`;
 }

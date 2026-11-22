@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { API_URL } from './api';
-import { ApiResponse, FeatureRequest, RequestMerge } from './models';
+import { toApiDate } from './api-date';
+import { ApiResponse, FeatureRequest, Report, RequestMerge } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -42,6 +43,27 @@ export class AdminService {
   merge(sourceId: string, targetId: string): Observable<RequestMerge> {
     return this.http
       .post<ApiResponse<RequestMerge>>(`${this.url}/${sourceId}/merge`, { targetId })
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Usage statistics, optionally limited to requests created in a date range.
+   * @param fromDate - Earliest created date (yyyy-mm-dd), inclusive.
+   * @param toDate - Latest created date (yyyy-mm-dd), inclusive.
+   * @returns Totals, counts by status, top voted and requests waiting for review.
+   */
+  report(fromDate?: string, toDate?: string): Observable<Report> {
+    let params = new HttpParams();
+    const from = toApiDate(fromDate);
+    const to = toApiDate(toDate);
+    if (from) {
+      params = params.set('fromDate', from);
+    }
+    if (to) {
+      params = params.set('toDate', to);
+    }
+    return this.http
+      .get<ApiResponse<Report>>(`${API_URL}/admin/reporting`, { params })
       .pipe(map((res) => res.data));
   }
 }

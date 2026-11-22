@@ -54,8 +54,16 @@
       <ul class="candidates">
         @for (candidate of candidates(); track candidate.id) {
           <li>
-            <span>{{ candidate.title }} <span class="muted">({{ candidate.voteCount }} votes)</span></span>
-            <button type="button" class="btn-danger" [disabled]="busy() !== null" (click)="mergeInto(candidate)">
+            <span
+              >{{ candidate.title }}
+              <span class="muted">({{ candidate.voteCount }} votes)</span></span
+            >
+            <button
+              type="button"
+              class="btn-danger"
+              [disabled]="busy() !== null"
+              (click)="mergeInto(candidate)"
+            >
               {{ busy() === 'merge' ? 'Merging…' : 'Merge into this' }}
             </button>
           </li>

@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, finalize, map, Observable, of, switchMap } from 'rxjs';
@@ -72,10 +81,14 @@ export class AdminPanel {
    * @returns Nothing.
    */
   protected saveStatus(): void {
-    this.run('status', this.admin.updateStatus(this.request().id, Number(this.statusId.value)), (req) => {
-      this.updated.emit(req);
-      this.message.set(`Status changed to ${req.status.name}.`);
-    });
+    this.run(
+      'status',
+      this.admin.updateStatus(this.request().id, Number(this.statusId.value)),
+      (req) => {
+        this.updated.emit(req);
+        this.message.set(`Status changed to ${req.status.name}.`);
+      },
+    );
   }
 
   /**
@@ -87,10 +100,14 @@ export class AdminPanel {
       this.response.markAsTouched();
       return;
     }
-    this.run('response', this.admin.setResponse(this.request().id, this.response.value.trim()), (req) => {
-      this.updated.emit(req);
-      this.message.set('Official response saved.');
-    });
+    this.run(
+      'response',
+      this.admin.setResponse(this.request().id, this.response.value.trim()),
+      (req) => {
+        this.updated.emit(req);
+        this.message.set('Official response saved.');
+      },
+    );
   }
 
   /**
