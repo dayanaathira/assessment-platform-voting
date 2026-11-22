@@ -2,13 +2,19 @@
 
 <header class="topbar">
   <a class="brand" routerLink="/feature-requests">Feature Voting</a>
-  <nav aria-label="Main">
-    <a routerLink="/feature-requests" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-      Requests
-    </a>
-    <a routerLink="/feature-requests/new" routerLinkActive="active">New request</a>
-    <a routerLink="/admin" routerLinkActive="active">Admin</a>
-  </nav>
+  @if (auth.user(); as user) {
+    <nav aria-label="Main">
+      <a routerLink="/feature-requests" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        Requests
+      </a>
+      <a routerLink="/feature-requests/new" routerLinkActive="active">New request</a>
+      @if (auth.isAdmin()) {
+        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+      }
+    </nav>
+    <span class="muted">{{ user.name }}</span>
+    <button type="button" (click)="auth.logout()">Log out</button>
+  }
 </header>
 
 <main id="main" class="container">
