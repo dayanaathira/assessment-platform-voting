@@ -10,6 +10,24 @@ duplicates and view usage statistics.
 | [`web/`](web/) | Frontend: Angular 22, served by nginx | [Web README](web/README.md) |
 | [`docker-compose.yml`](docker-compose.yml) | Postgres + API + seed + web | below |
 
+## Live demo
+
+**https://dayana.cloud**: the same `docker compose` setup on a single VPS, behind
+host nginx with Let's Encrypt. Demo logins are sent with the submission, not
+kept in the repo.
+
+## Where to read
+
+| Topic | Section |
+| --- | --- |
+| Authorization, transactions, uniqueness, concurrency | [API: Integrity](feature-voting/README.md#integrity) |
+| Backend decisions and rejected alternatives | [API: Decisions](feature-voting/README.md#decisions-and-rejected-alternatives) |
+| Frontend architecture and state | [Web: Architecture](web/README.md#architecture), [State management](web/README.md#state-management) |
+| Frontend decisions and rejected alternatives | [Web: Decisions](web/README.md#decisions-and-rejected-alternatives) |
+| Complete, partial and deferred | [API: Scope](feature-voting/README.md#scope), [Web: Scope](web/README.md#scope) |
+| Risks and next steps | [API: Risks and next steps](feature-voting/README.md#risks-and-next-steps) |
+| Tests | [API: Testing](feature-voting/README.md#testing), [Web: Testing](web/README.md#testing) |
+
 ## Run everything with Docker
 
 **Prerequisites:** Docker with the Compose plugin (`docker compose version`).
