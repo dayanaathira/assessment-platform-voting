@@ -10,10 +10,10 @@
     }
   </div>
 
-  <form class="row" (ngSubmit)="saveStatus()">
+  <form class="row" [formGroup]="statusForm" (ngSubmit)="saveStatus()">
     <div class="grow">
       <label for="admin-status">Status</label>
-      <select id="admin-status" [formControl]="statusId">
+      <select id="admin-status" formControlName="statusId">
         @for (status of statuses(); track status.id) {
           <option [ngValue]="status.id">{{ status.name }}</option>
         }
@@ -24,12 +24,12 @@
     </button>
   </form>
 
-  <form (ngSubmit)="saveResponse()">
+  <form [formGroup]="responseForm" (ngSubmit)="saveResponse()" novalidate>
     <label for="admin-response">Official response</label>
     <textarea
       id="admin-response"
       rows="3"
-      [formControl]="response"
+      formControlName="response"
       [attr.maxlength]="maxLength"
       [attr.aria-invalid]="response.invalid && response.touched"
     ></textarea>

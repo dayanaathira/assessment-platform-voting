@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, finalize, map, Observable, of, switchMap } from 'rxjs';
 import { AdminService } from '../../core/admin.service';
 import { FeatureRequestService } from '../../core/feature-request.service';
@@ -44,6 +44,9 @@ export class AdminPanel {
     nonNullable: true,
     validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(MAX_LENGTH)],
   });
+  // [formGroup] is what makes (ngSubmit) fire; a bare <form> would do a native page submit.
+  protected readonly statusForm = new FormGroup({ statusId: this.statusId });
+  protected readonly responseForm = new FormGroup({ response: this.response });
   protected readonly search = new FormControl('', { nonNullable: true });
 
   protected readonly busy = signal<'status' | 'response' | 'merge' | null>(null);

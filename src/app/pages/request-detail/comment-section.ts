@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, EMPTY, finalize, switchMap, tap } from 'rxjs';
 import { FeatureRequestService } from '../../core/feature-request.service';
 import { errorMessage } from '../../core/http-error';
@@ -37,6 +37,8 @@ export class CommentSection {
     nonNullable: true,
     validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(MAX_LENGTH)],
   });
+  // [formGroup] is what makes (ngSubmit) fire; a bare <form> would do a native page submit.
+  protected readonly form = new FormGroup({ body: this.body });
   protected readonly comments = signal<Comment[]>([]);
   protected readonly total = signal(0);
   protected readonly loading = signal(true);

@@ -1,12 +1,12 @@
 <section class="card" aria-labelledby="comments-heading">
   <h2 id="comments-heading">Comments ({{ total() }})</h2>
 
-  <form (ngSubmit)="post()" class="new-comment">
+  <form [formGroup]="form" (ngSubmit)="post()" class="new-comment" novalidate>
     <label for="comment-body">Add a comment</label>
     <textarea
       id="comment-body"
       rows="3"
-      [formControl]="body"
+      formControlName="body"
       [attr.maxlength]="maxLength"
       [attr.aria-invalid]="body.invalid && body.touched"
       aria-describedby="comment-error"

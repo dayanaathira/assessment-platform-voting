@@ -220,8 +220,6 @@ function toForm(query: FeatureRequestQuery) {
  */
 function byVotes(a: FeatureRequest, b: FeatureRequest): number {
   return (
-    b.voteCount - a.voteCount ||
-    b.createdAt.localeCompare(a.createdAt) ||
-    b.id.localeCompare(a.id)
+    b.voteCount - a.voteCount || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
   );
 }
