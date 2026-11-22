@@ -16,6 +16,10 @@ duplicates and view usage statistics.
 host nginx with Let's Encrypt. Demo logins are sent with the submission, not
 kept in the repo.
 
+Swagger is left on here on purpose, so reviewers can try the API directly:
+https://dayana.cloud/feature-voting/api-docs. A real production deployment
+would set `SWAGGER_ENABLED=false` (see [On a server](#on-a-server)).
+
 ## Where to read
 
 | Topic | Section |

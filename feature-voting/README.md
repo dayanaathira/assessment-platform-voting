@@ -577,5 +577,12 @@ Both sit outside the API prefix.
 
 ## Time spent
 
-_To be filled in before submission._ Git history covers 21 Nov 20:35 → 22 Nov
-00:41; that doesn't include planning before the first commit.
+About 8 hours in total:
+
+| Part | Time |
+| --- | --- |
+| Backend: API, data model, migrations, unit tests, docs | ~4 h |
+| Frontend, Docker setup and the live server (VPS, nginx, TLS) | ~4 h |
+
+Git history covers 21 Nov 20:35 → 22 Nov 00:41; planning and server setup
+happened outside it. The live concurrency suite was added afterwards, on 22 Nov.
