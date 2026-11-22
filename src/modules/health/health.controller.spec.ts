@@ -74,7 +74,9 @@ describe('HealthService', () => {
     } as never);
 
   it('reports the database as reachable when the probe query succeeds', async () => {
-    const service = serviceWith(jest.fn().mockResolvedValue([{ '?column?': 1 }]));
+    const service = serviceWith(
+      jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+    );
 
     await expect(service.isDatabaseReachable()).resolves.toBe(true);
   });

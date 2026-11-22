@@ -1,451 +1,556 @@
-# Feature Voting
+# Feature Voting — API
 
-The NestJS backend service for Feature Voting.
+Backend for a product-feedback platform: users submit feature requests, vote,
+comment and follow progress; admins change status, post official responses,
+merge duplicates and view usage statistics.
 
-It ships **no entities and no migrations** yet. It creates nothing in your
-database beyond its own migration history table, so the first table in there
-is one you wrote.
+NestJS 11 · MikroORM 7 · PostgreSQL · JWT · class-validator · Jest
 
-Logging, error handling, seeding and request IDs live in
-[`src/common/`](src/common/).
+> **Scope of this submission:** the backend vertical slice is complete. The
+> Angular frontend is in [`../web`](../web/README.md) and the whole stack runs
+> with one `docker compose up` from the [repository root](../README.md).
+> Real-Postgres concurrency tests are not done — see [Scope](#scope).
 
-Where this README and the code disagree, the code wins.
+---
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Architecture](#architecture)
+- [Data model](#data-model)
+- [API](#api)
+- [Integrity: authorization, transactions, uniqueness, concurrency](#integrity)
+- [Decisions and rejected alternatives](#decisions-and-rejected-alternatives)
+- [Testing](#testing)
+- [Operations](#operations)
+- [Scope](#scope)
+- [Risks and next steps](#risks-and-next-steps)
+- [Time spent](#time-spent)
+
+---
 
 ## Quick start
 
+**Prerequisites:** Node ≥ 22.12 (MikroORM 7 is ESM-only) and a PostgreSQL you
+can reach.
+
 ```bash
 cp .env.example .env
+```
+
+Edit `.env`:
+
+| Variable | What to set |
+| --- | --- |
+| `POSTGRES_*` | Your Postgres connection. Tables go in `POSTGRES_SCHEMA` (default `feature_dev`). |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | Two **different** secrets, ≥ 32 chars each: `openssl rand -base64 48` |
+| `SEED_ADMIN_PASSWORD`, `SEED_USER_PASSWORD` | Passwords for the seeded users, ≥ 8 chars |
+
+Startup fails with every problem listed if a required value is missing or
+malformed ([`env.validation.ts`](src/config/env.validation.ts)).
+
+```bash
 npm ci
-npm run migration:up          # apply committed migrations
+npm run migration:up     # create the schema
+npm run seed             # 5 statuses, 2 roles, admin + user1..user3
 npm run start:dev
 ```
 
-You need a Postgres to point at — a local install is fine, and there is
-nothing to containerise. Set the `POSTGRES_*` values in `.env` to match it;
-`.env.example` assumes the default `localhost:5432`. The service creates
-nothing beyond its own migration history table, so an empty database is the
-right starting point.
-
-Then:
-
-- API: <http://localhost:3000/feature-voting/v1>
-- Swagger: <http://localhost:3000/feature-voting/api-docs>
-- Probes: <http://localhost:3000/health> and <http://localhost:3000/ready>
-
-Requires Node >= 22.12. MikroORM v7 is ESM-only and the CommonJS build
-`require()`s it, which older Node cannot do.
-
-## Stripping down
-
-The repo ships as **HTTP + migration owner**. For the other shapes:
-Rows marked **optional** are feature slices, not requirements. If a service
-does not use one, remove the slice's package, configuration, and module wiring
-along with its source folder rather than leaving a disabled stub behind.
-
-| You are building | Remove |
+| | URL |
 | --- | --- |
-| A service that only *reads* tables another service owns | `@mikro-orm/migrations`, `@mikro-orm/cli`, the `migration:*` scripts, `migrations/`, and the `StartupService` migration block. A read-only consumer must ship no migration tooling at all. |
-| A service with no browser clients (**optional CORS slice**) | `CORS_ORIGINS` from `src/config/env.validation.ts` and the `enableCors()` call in `main.ts`. Leaving CORS off beats configuring it decoratively. |
-| A service with no database | All of the above, plus `MikroOrmModule`, `mikro-orm.config.ts` and the database check in `HealthService`. |
+| API | `http://localhost:3000/feature-voting/v1` |
+| Swagger | `http://localhost:3000/feature-voting/api-docs` — log in, then **Authorize** with the `accessToken` |
+| Probes | `http://localhost:3000/health`, `http://localhost:3000/ready` |
 
-## Migrations
+Seeded logins: `admin` / `SEED_ADMIN_PASSWORD`, and `user1`–`user3` /
+`SEED_USER_PASSWORD`.
 
-**The application applies migrations. It never generates them.**
+**Tests:** `npm test` (unit, no database needed). See [Testing](#testing).
 
-Generating on boot means unreviewed SQL runs against whatever database the
-container points at, the file recording it is lost when the container
-restarts, and rollback becomes a data-loss path — redeploy the previous image
-and the old entities diff against the new schema, so the old pod generates
-and applies a migration undoing your change.
+**Everything in Docker** (Postgres, API, seed, web): see the
+[root README](../README.md#run-everything-with-docker).
 
-### Authoring workflow
+**Docker image:** `docker build -t feature-voting-api .` builds a multi-stage
+image that runs as the unprivileged `node` user on port 3000 and applies
+migrations on start. Pass configuration as environment variables; nothing is
+baked in (`.env` is excluded by `.dockerignore`).
 
-```bash
-# 1. edit your entity, then generate a draft
-npm run migration:create -- --name what-it-does
+---
 
-# 2. READ AND EDIT the generated SQL   <- this is the safety mechanism
-# 3. verify locally
-npm run migration:up
+## Architecture
 
-# 4. commit the migration with the entity change
+### Modules
+
+| Module | Responsibility |
+| --- | --- |
+| `login` | `POST /auth/login`, `/auth/refresh`, `GET /auth/me`; registers the global `JwtAuthGuard` and `RolesGuard` |
+| `user` | Entities `User`, `Role`, `UserRole`; admin-only create/get user |
+| `feature-request` | Requests, comments, votes, statuses — list, detail, create, edit, soft delete, vote/unvote, comment |
+| `admin` | Status changes, official responses (`AdminService`) and merges (`MergeService`) |
+| `reporting` | Admin statistics |
+| `health` | Liveness and readiness probes |
+
+Cross-cutting pieces live in [`src/common/`](src/common/): guards,
+decorators (`@Public`, `@Roles`, `@CurrentUser`, `@ResponseMessage`), the
+response interceptor, the exception filter, the logger, date/query/password
+utils and seeders.
+
+### Request pipeline
+
+```mermaid
+flowchart LR
+    C([Client]) --> MW[Middleware<br/>helmet · CORS · request id]
+    MW --> JG{JwtAuthGuard}
+    JG -- "@Public()" --> RG
+    JG -- "valid Bearer token<br/>sets req.user" --> RG{RolesGuard}
+    JG -- "missing / invalid / expired" --> E401[401]
+    RG -- "no @Roles, or role matches" --> VP[ValidationPipe<br/>whitelist · forbidNonWhitelisted · transform]
+    RG -- "role missing" --> E403[403]
+    VP -- invalid --> E400[400]
+    VP --> CT[Controller] --> SV[Service<br/>business rules · ownership · transactions]
+    SV --> ORM[(MikroORM → PostgreSQL)]
+    SV --> RI[ResponseInterceptor<br/>statusCode · data · message]
+    RI --> C
+    SV -. throws .-> F[AllExceptionsFilter<br/>statusCode · error · message]
+    F --> C
 ```
 
-Step 2 is not a formality. An entity diff cannot tell a rename from a
-drop-plus-add: renaming `fullName` to `name` generates
-`DROP COLUMN full_name; ADD COLUMN name;` — correct-looking SQL,
-correct-looking result, every value in that column gone. Hand-edit it to
-`ALTER ... RENAME`, or split it into expand/contract across two releases.
+**Response shapes.** Success: `{ statusCode, data?, message? }`. Error:
+`{ statusCode, error, message, path, timestamp }`. 5xx messages are replaced
+with a generic one so SQL and driver text never reach the client; the detail
+goes to the error log.
 
-Expand/contract matters generally: with a rolling deploy there is always a
-window where old pods serve traffic against the new schema. Destructive
-changes go add → backfill → cut reads over → drop in a *later* release.
+---
 
-The requirement is **reviewed**, not hand-typed. Generating the draft is
-fine; owning what it contains is the point.
+## Data model
 
-`migrations/.snapshot-feature-voting.json` is how MikroORM diffs your
-entities. It is committed on purpose — delete it and the next
-`migration:create` regenerates your whole schema as a new migration. It ships
-holding an empty schema, so your first `migration:create` emits exactly your
-own tables.
+```mermaid
+erDiagram
+    user ||--o{ user_roles : has
+    roles ||--o{ user_roles : grants
+    user ||--o{ feature_request : "created_by"
+    status ||--o{ feature_request : status_id
+    feature_request ||--o{ votes : receives
+    user ||--o{ votes : casts
+    feature_request ||--o{ comment : has
+    user ||--o{ comment : writes
+    feature_request ||--o| request_merge : "source (unique)"
+    feature_request ||--o{ request_merge : target
+    user ||--o{ refresh_token : "signed in as"
 
-### What a reviewed migration looks like
-
-The generator emits only `up()`, and only what the diff implies. These are the
-edits worth making by hand every time:
-
-```ts
-export class Migration20260101000000_create_widgets extends Migration {
-  // A descriptive suffix. Two services migrating into one database cannot
-  // then record the same migration name and silently skip each other's work.
-  override name = 'Migration20260101000000_create_widgets';
-
-  override up(): void | Promise<void> {
-    // `if not exists`, so a re-run against a partially-migrated database is
-    // not fatal. Guard the constraints too, not just the table — a bare
-    // `add constraint` still fails on the second run.
-    this.addSql(
-      `create table if not exists "widgets" ("id" serial primary key, "label" varchar(255) not null);`,
-    );
-  }
-
-  // The generator does not emit `down()`. Without one, `migration:down`
-  // does nothing and there is no rehearsed way back.
-  override down(): void | Promise<void> {
-    this.addSql(`drop table if exists "widgets";`);
-  }
-}
+    user {
+        uuid id PK
+        varchar username UK
+        varchar password_hash
+    }
+    roles {
+        uuid id PK
+        varchar name UK
+    }
+    user_roles {
+        uuid id PK
+        uuid user_id FK
+        uuid roles_id FK
+    }
+    status {
+        int id PK
+        varchar name
+    }
+    feature_request {
+        uuid id PK
+        varchar title
+        text description
+        int status_id FK
+        uuid created_by FK
+        text official_response
+        int vote_count "CHECK >= 0"
+        int comment_count "CHECK >= 0"
+        boolean delete_flag
+    }
+    votes {
+        uuid user_id PK
+        uuid feature_request_id PK
+    }
+    comment {
+        uuid id PK
+        uuid user_id FK
+        uuid feature_request_id FK
+        text body
+    }
+    request_merge {
+        uuid id PK
+        uuid source_request_id UK
+        uuid target_request_id FK
+        int votes_moved
+        int comments_moved
+    }
+    refresh_token {
+        uuid id PK "JWT jti"
+        uuid user_id FK "ON DELETE CASCADE"
+        timestamptz expires_at
+        timestamptz revoked_at "null while usable"
+    }
 ```
 
-### Ownership
+Audit columns (`created_at`, `updated_at`, `created_by`, `updated_by`,
+`official_response_at/_by`) are omitted above. All timestamps default to
+`now()` in the database so raw inserts work.
 
-This service owns its own history table
-(`mikro_orm_migrations_<service>`, derived from `SERVICE_NAME`), which is
-safe whether or not the database turns out to be shared.
+**Key constraints**
 
-If several services share one database *and* one history table, MikroORM
-tracks applied migrations by name, so on a fresh database the service that
-boots second silently skips its own identically-named migration. Renaming
-future migrations does not repair an existing collision — the name is already
-recorded, and reconciling it means editing that table by hand.
+| Constraint | Enforces |
+| --- | --- |
+| `votes` PK `(user_id, feature_request_id)` | One vote per user per request |
+| `request_merge.source_request_id` UNIQUE | A request is merged at most once |
+| `CHECK (source_request_id <> target_request_id)` | No self-merge |
+| `CHECK (vote_count >= 0)`, `CHECK (comment_count >= 0)` | Counters never go negative |
+| `user.username` UNIQUE, `roles.name` UNIQUE, `user_roles (user_id, roles_id)` UNIQUE | No duplicate identities or role grants |
 
-A service that only reads another service's tables carries no migration
-tooling and no startup migration block. See "Stripping down".
+**Indexes:** `feature_request (status_id)`, `(vote_count DESC)`,
+`(created_at DESC)`; `comment (feature_request_id, created_at)`;
+`votes (feature_request_id)` (the PK leads with `user_id`);
+`request_merge (target_request_id)`; `refresh_token (user_id)`.
 
-### The boot-time lock
+**Statuses** (seeded): 1 Under Review · 2 Planned · 3 In Progress ·
+4 Released · 5 Declined. Released and Declined are *closed*: votes are frozen.
 
-`StartupService` holds a Postgres advisory lock across both discovery and
-application, so two replicas starting together do not both apply the same
-migrations. The replica that waits re-checks and normally finds nothing
-pending. On timeout, startup **fails** rather than serving against a schema
-nobody finished migrating. Tune with `DB_MIGRATION_LOCK_*` in `.env`.
+**Migrations** are in [`migrations/`](migrations/), generated from the entities
+and reviewed by hand. The app applies pending migrations on boot under a
+Postgres advisory lock, so replicas starting together don't race.
 
-The lock, the discovery read and the migration all run on **one** database
-session, which is what makes the lock mean anything. Two details in
-`startup.service.ts` carry that and are easy to undo by accident:
-`connection.execute()` runs on a pooled connection unless it is passed the
-transaction, and `migrator.up()` opens its own unless it is handed one. Get
-either wrong and the lock reports success while holding nothing.
-`test/migration-lock.e2e-spec.ts` checks this against a real PostgreSQL,
-because no mock can see it.
+---
 
-### Forgetting a migration
+## API
 
-Because nothing generates automatically, changing an entity and forgetting
-the migration compiles fine and fails at runtime. `npm run check:migrations`
-(and the `migration-check` CI job) fails a branch that touches an entity
-without touching a migration.
+All paths are under `/feature-voting/v1`. Every route needs a Bearer access
+token unless marked public.
 
-## Seeding
+| Method | Path | Access | Notes |
+| --- | --- | --- | --- |
+| POST | `/auth/login` | public | `{ username, password }` → `{ accessToken, refreshToken }` |
+| POST | `/auth/refresh` | public | `{ refreshToken }` → new pair; the token sent is revoked (single use); roles reloaded from the DB |
+| POST | `/auth/logout` | public | `{ refreshToken }` → revokes it; always 200 |
+| GET | `/auth/me` | user | `{ id, name, roles[] }` |
+| GET | `/feature-request` | user | `q`, `status`, `fromDate`/`toDate` (`DD-MM-YYYY`), `sort=votes\|new`, `limit`, `offset`. Excludes merged and deleted. Each item has `hasVoted`, `canVote`. |
+| GET | `/feature-request/status` | public | The 5 statuses |
+| GET | `/feature-request/:id` | user | Detail with `hasVoted`, `canVote`, `mergedInto { id, title, mergedAt, mergedBy }`, `mergedFrom[]` |
+| POST | `/feature-request` | user | Create; starts as Under Review |
+| PATCH | `/feature-request/:id` | owner | 403 for others, 409 if merged |
+| DELETE | `/feature-request/:id` | owner | Soft delete; 409 if part of a merge |
+| PUT | `/feature-request/:id/vote` | user | → `{ voteCount, hasVoted }`; 409 if already voted, merged, or closed |
+| DELETE | `/feature-request/:id/vote` | user | → `{ voteCount, hasVoted }`; no-op if not voted; 409 if merged or closed |
+| GET | `/feature-request/:id/comments` | user | Newest first, `limit`/`offset` |
+| POST | `/feature-request/:id/comments` | user | 409 if merged |
+| PATCH | `/admin/feature-request/:id/status` | admin | `{ statusId }` |
+| PUT | `/admin/feature-request/:id/response` | admin | `{ response }` |
+| POST | `/admin/feature-request/:id/merge` | admin | `{ targetId }` → merge record incl. `votesMoved`, `commentsMoved`, `createdBy` |
+| GET | `/admin/reporting` | admin | Totals, counts per status, top 5 voted, oldest 10 Under Review; optional `fromDate`/`toDate` |
+| POST | `/user` | admin | `{ name, username, password, role }`; 409 on duplicate username |
+| GET | `/user/:id` | admin | `{ id, name, username, roles[], createdAt }` |
 
-Seeding does **not** run on boot. A service must not write rows into a
-database as a side effect of a replica restarting.
+Every `:id` is checked with `ParseUUIDPipe`, so a malformed id is a 400, not a
+database error.
 
-```bash
-npm run seed
+---
+
+<a id="integrity"></a>
+
+## Integrity: authorization, transactions, uniqueness, concurrency
+
+### Authorization
+
+| Rule | Where it's enforced |
+| --- | --- |
+| Every route needs a valid access token | Global `JwtAuthGuard`; `@Public()` opts out (login, refresh, logout, statuses, probes) |
+| Only admins change status, respond, merge, report, manage users | Global `RolesGuard` + `@Roles(ROLE.ADMIN)` on those controllers → 403 |
+| A user can't edit or delete another user's request | Owner check in `FeatureRequestService` → 403 |
+| Merged requests are read-only | Service checks → 409 |
+| Hiding admin UI in the frontend | Cosmetic only — the server decides |
+
+### Login and tokens
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as /auth
+    participant DB as PostgreSQL
+    C->>A: POST /auth/login {username, password}
+    A->>DB: find user + roles by username
+    A->>A: bcrypt compare (against a dummy hash if no user)
+    alt wrong username or password
+        A-->>C: 401 "Invalid username or password" (same for both)
+    else ok
+        A->>DB: INSERT refresh_token (id = jti, expires_at)
+        A-->>C: accessToken {sub, name, roles[]} (15m, JWT_SECRET)<br/>refreshToken {sub, jti} (7d, JWT_REFRESH_SECRET)
+    end
+    C->>A: POST /auth/refresh {refreshToken}
+    A->>DB: BEGIN; SELECT refresh_token WHERE id = jti AND user_id = sub FOR UPDATE
+    alt missing or revoked
+        A-->>C: 401
+    else usable
+        A->>DB: revoked_at = now(); reload user + roles; INSERT new refresh_token; COMMIT
+        A-->>C: new pair (role changes apply here)
+    end
+    C->>A: POST /auth/logout {refreshToken}
+    A->>DB: UPDATE refresh_token SET revoked_at = now() WHERE id = jti
+    A-->>C: 200 (also for invalid or already revoked tokens)
 ```
 
-Add a seeder under `src/common/seeds/` and pass it into
-`DbSeederModule.forRoot([...])` in
-[`app.module.ts`](src/modules/app/app.module.ts). Use `seedIfMissing`
-([`seed.util.ts`](src/common/utils/seed.util.ts)) to insert-if-missing rather
-than writing raw upserts, and keep seeders idempotent.
+- Passwords are hashed with bcrypt (12 rounds) and limited to 72 bytes, bcrypt's
+  real limit.
+- Access and refresh tokens use different secrets, so neither can stand in for
+  the other. Both verify with `HS256` only.
+- Usernames are trimmed and lower-cased on create and login.
+- **Refresh tokens are single use.** Each carries a `jti` stored in
+  `refresh_token`; refresh revokes it and issues a new one. The row lock means
+  two concurrent refreshes with the same token can't both succeed. The token
+  itself isn't stored: a `jti` is useless without a token signed with
+  `JWT_REFRESH_SECRET`.
+- **Logout revokes** the refresh token. Like OAuth token revocation (RFC 7009)
+  it always answers 200, so it doesn't reveal whether a token was live.
+- Expired rows for a user are deleted at their next login.
+- **Access tokens are not revocable:** they stay valid until they expire
+  (15 minutes), the accepted cost of not checking the database on every
+  request.
 
-```ts
-// src/common/seeds/example.seeder.ts
-import { Seeder } from '@mikro-orm/seeder';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { Example } from '../../modules/example/entities/example.entity';
-import { seedIfMissing } from '../utils/seed.util';
+### Voting
 
-export class ExampleSeeder extends Seeder {
-  async run(entityManager: EntityManager): Promise<void> {
-    await seedIfMissing(entityManager, Example, [
-      { id: 1, name: 'First example' },
-      { id: 2, name: 'Second example' },
-    ]);
-  }
-}
+```mermaid
+flowchart TD
+    A[PUT /feature-request/:id/vote] --> T[BEGIN]
+    T --> L["SELECT … FROM feature_request<br/>WHERE id = ? AND delete_flag = false<br/>FOR UPDATE"]
+    L -->|not found| N404[404]
+    L --> M{merged?}
+    M -->|yes| C409a[409 merged]
+    M -->|no| S{Released or Declined?}
+    S -->|yes| C409b[409 voting closed]
+    S -->|no| I["INSERT INTO votes …<br/>ON CONFLICT (user_id, feature_request_id) DO NOTHING"]
+    I -->|0 rows| C409c[409 already voted<br/>ROLLBACK]
+    I -->|1 row| U[vote_count + 1]
+    U --> CM[COMMIT → voteCount, hasVoted: true]
 ```
 
-```ts
-// src/modules/app/app.module.ts
-DbSeederModule.forRoot([ExampleSeeder]),
+- **Once per user:** the `votes` primary key. Duplicates can't exist even if
+  application code were wrong.
+- **Repeated requests don't create duplicates:** `ON CONFLICT DO NOTHING`, and
+  the counter only moves when a row was actually inserted (or, for unvote,
+  deleted).
+- **Concurrent votes can't lose updates:** the request row is locked
+  (`FOR UPDATE`) for the transaction, so votes on the same request queue and
+  each sees the previous count. The same lock serialises votes with comments
+  and merges on that request.
+- **Unvote** mirrors it: `DELETE`; decrement only if a row was deleted; no vote
+  is a no-op returning 200.
+
+### Merging duplicates
+
+Merging B into A moves B's activity to A and leaves B as a read-only pointer.
+
+```mermaid
+flowchart TD
+    R["POST /admin/feature-request/B/merge { targetId: A }"] --> SELF{B = A?}
+    SELF -->|yes| E400[400]
+    SELF -->|no| TX[BEGIN]
+    TX --> LK["Lock A and B<br/>SELECT … FOR UPDATE ORDER BY id"]
+    LK -->|either missing| E404[404]
+    LK --> CHK{"B already merged?<br/>A merged away?<br/>B has merges into it?"}
+    CHK -->|any| E409[409]
+    CHK -->|no| V["Copy B's voters to A<br/>INSERT … ON CONFLICT DO NOTHING<br/>(overlapping voters count once)"]
+    V --> DV[Delete B's votes]
+    DV --> CO[Move B's comments to A]
+    CO --> RC["Recount A with COUNT(*)<br/>Set B's counts to 0"]
+    RC --> REC["Insert request_merge<br/>(votesMoved, commentsMoved, createdBy)"]
+    REC --> OK[COMMIT]
 ```
 
-[`ExampleSeeder`](src/common/seeds/example.seeder.ts) ships as a worked
-reference, alongside [`Example`](src/modules/example/entities/example.entity.ts)
-— delete both once you have real entities to seed instead; they exist to show
-the pattern, not to be kept.
+After a merge:
 
-## Configuration
+- **B** keeps its row, title and history. It's hidden from lists and stats,
+  every write to it returns 409, and its detail shows `mergedInto` so the UI
+  can link to A.
+- **A** gains B's unique voters and all comments (original authors and times
+  kept) and lists B in `mergedFrom`.
+- **Chains are blocked** (B→A→C): a target with merges can't itself be merged,
+  and a merged request can't be merged again (also enforced by the unique
+  `source_request_id`). Redirects therefore never take more than one hop.
+- A request that's part of a merge **can't be deleted**, so B's link can't be
+  orphaned.
 
-Required configuration is validated at startup, before anything opens a
-connection ([`env.validation.ts`](src/config/env.validation.ts)). A missing
-or malformed value fails the boot with every problem listed at once, instead
-of surfacing later as a confusing runtime error.
+### Transaction boundaries
 
-Add new required variables to that schema. `.env.example` is the reference.
+| Operation | In one transaction |
+| --- | --- |
+| Vote / unvote | lock request → checks → insert/delete vote → update count |
+| Add comment | lock request → checks → insert comment → `comment_count + 1` |
+| Merge | lock both → checks → move votes → move comments → recount → record |
+| Create user | user row + role row (one flush) |
 
-## The HTTP boundary
+Single-row updates (edit, soft delete, status, response) rely on one flush,
+which MikroORM wraps in a transaction.
 
-- **CORS** is an explicit allowlist from `CORS_ORIGINS`, with no fallback —
-  a default would mean staging silently accepting a localhost origin.
-  `credentials` is off; turn it on only alongside real cookie auth and CSRF
-  protection.
-- **Validation**: `ValidationPipe({ whitelist: true, transform: true,
-  forbidNonWhitelisted: true })`.
-  `whitelist` strips unknown properties, which is the mass-assignment
-  defense; `forbidNonWhitelisted` rejects them so client mistakes are visible.
-- **Errors**: every failure leaves through `AllExceptionsFilter`
-  ([`all-exceptions.filter.ts`](src/common/filters/all-exceptions.filter.ts))
-  in one stable shape. 4xx messages pass through;
-  anything 5xx is replaced with a generic message so driver text and SQL
-  never reach the caller. Detail goes to the log.
-- **Swagger** is off in production unless `SWAGGER_ENABLED=true`.
+---
 
-## Health checks
+## Decisions and rejected alternatives
 
-| Endpoint | Checks | Semantics |
+| Decision | Why | Rejected |
 | --- | --- | --- |
-| `GET /health` | process liveness only | 200 as soon as the process is listening. Never touches the database — a brief blip must not restart healthy pods. Keeps returning 200 during graceful shutdown. |
-| `GET /ready` | database connection | 503 while dependencies are unavailable, and immediately on `SIGTERM`. |
+| **Row lock (`FOR UPDATE`) + `ON CONFLICT`** for vote counts | Correct under concurrency, expressible in MikroORM without raw SQL, and the same lock serialises votes, comments and merges on a request. | Atomic `UPDATE … SET vote_count = vote_count + 1` without a lock: also correct and slightly faster, but needs raw SQL and doesn't coordinate with merges. Computing counts with `COUNT(*)` on every read: simpler, but slow for sorted lists. |
+| **Denormalised `vote_count` / `comment_count`** | Lists sort by votes; a counter column with an index keeps that one indexed scan. | Live counts per list query. |
+| **Repeat vote → 409** | Requested product behaviour: the user is told they already voted. | Fully idempotent 200. The database state is still idempotent; only the response differs, so clients retrying a vote should treat this 409 as success. |
+| **Votes frozen on Released / Declined** (vote and unvote → 409) | A decision has been made; the count is a record. `canVote` tells the UI. | Allowing unvote after closing. |
+| **Merges in a `request_merge` table**, not a self-FK on `feature_request` | Keeps an audit row (who, when, how much moved) and makes "merged" a simple existence check. | `merged_into_id` column on the request. |
+| **Merged-request exclusion via MikroORM `merges: { $none: {} }`** | Pure ORM, no raw SQL; generates `id NOT IN (subquery)`, equivalent to `NOT EXISTS` here because `source_request_id` is never null. | A raw `NOT EXISTS` helper. |
+| **Soft delete (`delete_flag`) with a default MikroORM filter** | Every ORM query skips deleted rows automatically; history kept. | Hard delete (would drop other users' comments); `deleted_at` timestamp. |
+| **Comments on their own paginated endpoint** | Detail stays at 4 parallel queries; comments load on demand with an index-backed `LIMIT/OFFSET`. | Populating `comments` on the request: MikroORM's per-parent limit uses `row_number()` over every comment and adds a sequential round trip. |
+| **`limit` / `offset` paging** | Simple, matches the UI; `offset` capped at 10 000. | Cursor paging — better for deep pages, not needed at this size. |
+| **Stateless JWT access (15m) + single-use refresh (7d) tracked by `jti`, separate secrets** | Access checks need no database; refresh and logout can revoke, so a copied refresh token stops working once used or logged out. Role changes apply at the next refresh. | Fully stateless refresh tokens: simpler, but a stolen token works for 7 days and logout is client-only. A `token_version` column on `user`: one migration column, but every refresh or login logs out the user's other devices and tabs. Passport: one more dependency for what a 40-line guard does. |
+| **bcrypt** for passwords | Standard, well understood. | Node's built-in `scrypt` (no native dependency). |
+| **Explicit `fromDate` / `toDate` as `DD-MM-YYYY`, whole days in `+08:00`** | Matches how users think about dates; `toDate` is inclusive. | ISO timestamps from the client. |
+| **Validation with class-validator DTOs and `forbidNonWhitelisted`** | Unknown fields are a 400, which also blocks mass assignment. | Silently stripping unknown fields. |
 
-Both sit outside the API prefix and outside versioning, so probe URLs do not
-move when the service is renamed.
+---
 
-Migrations run before `app.listen()`, so nothing answers at all during the
-migration window. That is a **deployment** concern: cover it with a
-`startupProbe` (or `initialDelaySeconds`), not by making liveness check the
-database. This repo does not ship manifests.
-
-## Logging
-
-The logger is `nest-winston`, configured for structured JSON on stdout by
-`WinstonLoggerModule` ([`src/common/logger/`](src/common/logger/)).
-
-Application code uses the small `WinstonLoggerService` wrapper, not
-`console.log`:
-
-```ts
-this.logger.getLogger().info('Something happened', {
-  label: ExampleService.name + ' doSomething',
-});
-```
-
-The `label` convention (`ClassName methodName`) is a convention, not enforced.
-Each inbound request accepts a bounded `x-request-id` or receives a generated
-one; the ID is returned in the response and added to application log records.
-
-Never log secrets: no tokens, authorization headers, passwords, or raw
-request bodies.
-
-## Tests
+## Testing
 
 ```bash
-npm test           # unit
-npm run test:e2e   # e2e (needs a Postgres — see Quick start)
-npm run test:cov   # coverage
+npm test          # unit tests, mocked EntityManager — no database
+npm run test:cov  # with coverage
+npm run test:e2e  # existing e2e suite (needs Postgres)
 ```
 
-Both suites run on `@swc/jest`. That is not a preference: MikroORM v7 and its
-dependency tree are ESM-only, and Jest's CommonJS loader cannot require them.
-`transformIgnorePatterns` is empty so those dependencies get transformed too.
+**137 unit tests in 21 suites.** The business-rule ones:
 
-## What a pipeline should verify
-
-**This repo ships no pipeline.** Whatever CI you add should run these gates.
-
-The gates, and the command that runs each, so they are identical wherever
-they are wired:
-
-| Gate | Command |
+| Spec | Covers |
 | --- | --- |
-| Lint | `npm run lint:check` |
-| Types | `npm run typecheck` |
-| Unit tests | `npm test` |
-| E2E tests | `npm run test:e2e` (needs a Postgres) |
-| Forgotten migration | `npm run check:migrations` |
-| Build | `npm run build` |
+| `common/guards/roles.guard.spec.ts` | admin passes, multi-role passes, `user` / no roles / no user → 403 |
+| `common/guards/jwt-auth.guard.spec.ts` | public routes; missing, malformed, tampered, expired tokens and a refresh token used as access → 401 |
+| `login/login.service.spec.ts` | roles in the token; wrong password and unknown user give the same 401; login stores the `jti` row and clears expired ones; refresh rotates (old revoked, new row), locks the row, and rejects reused, unknown, pre-rotation, access and deleted-user tokens; logout revokes, and ignores junk |
+| `feature-request/feature-request.service.spec.ts` | vote +1 only on insert; repeat → 409, count unchanged; lock taken; closed and merged → 409; unvote no-op; edit/delete 404 / 403 (not owner) / 409 (merged) with no write |
+| `admin/merge.service.spec.ts` | self → 400 with no DB access; missing → 404; three chain cases → 409; lock order; overlapping voters counted once; recount; `votesMoved` |
+| `admin/admin.service.spec.ts` | status/response 404 and 409 |
+| `…/list-feature-request-query.dto.spec.ts`, `…/feature-request-input.dto.spec.ts`, `user/dtos/add-user.dto.spec.ts` | the real `ValidationPipe` settings: defaults, trimming (title, description), every rejected input |
 
-`npm run check:migrations` is the one worth asking for explicitly. It fails
-when an entity changed but no migration did — the failure mode that apply-only
-migrations create, and the one nothing else catches. See
-[Forgetting a migration](#forgetting-a-migration).
+**What these don't prove.** The unit tests check the decisions and that the
+right lock and `ON CONFLICT` are requested. That 50 concurrent votes end at
+exactly 50 depends on Postgres honouring them, and needs an integration test
+against a real database — listed under [next steps](#risks-and-next-steps).
 
-## Worked example
+**CI gates** (no pipeline ships; these are the commands to wire up):
+`npm run lint:check` · `npm run typecheck` · `npm test` ·
+`npm run check:migrations` (fails if an entity changed without a migration) ·
+`npm run build`.
 
-`src/modules/example/` is a small vertical slice showing a DTO with
-validation, a service, a controller, tests, an
-entity ([`Example`](src/modules/example/entities/example.entity.ts)) and a
-seeder ([`ExampleSeeder`](src/common/seeds/example.seeder.ts)), so the slice
-demonstrates the pattern end to end: entity and seed data.
+---
 
-This is the one deliberate exception to "no entities and no migrations" at
-the top of this README — it exists purely as a reference to copy from. Delete
-`src/modules/example/` and `ExampleSeeder` once your service has real
-entities; don't build on top of it.
+## Operations
 
-## Request IDs and logging
+### Logging
 
-The service accepts a bounded `x-request-id` at the inbound boundary or
-generates one, returns it in the response, and includes it in structured JSON
-logs written to stdout. Use `CorrelationHttpClient` for outbound native
-`fetch` calls so the same ID is propagated to the next service.
+Structured JSON (timestamp, level, `service`, `requestId`, `label`, stack) to
+stdout **and** daily files under `LOG_DIR` (default `logs/`):
 
-### Client addresses behind a proxy
-
-The access log records `req.ip`. Express derives that from its `trust proxy`
-setting, and this repo leaves it off unless `TRUST_PROXY_HOPS` says how many
-proxies really sit in front of the process:
-
-| `TRUST_PROXY_HOPS` | `req.ip` for `X-Forwarded-For: 1.1.1.1, 2.2.2.2, 3.3.3.3` |
+| Folder | Contains |
 | --- | --- |
-| unset | the socket peer — behind nginx, nginx's own address |
-| `1` | `3.3.3.3` — what the one trusted proxy saw |
-| `2` | `2.2.2.2` |
+| `logs/applications/` | everything at `LOG_LEVEL` and above (default `http`, one line per request) |
+| `logs/errors/` | errors only, with stack — the first place to look |
+| `logs/exceptions/` | uncaught exceptions and unhandled rejections |
 
-Setting Express's `trust proxy` to `true` instead of a count is the dangerous
-option: `req.ip` becomes the leftmost `X-Forwarded-For` entry, which the
-caller writes, so any client can put whatever address it likes in your logs.
-That is why this is a hop count and there is no boolean form. It also changes
-`req.protocol`, `req.secure`, and `req.hostname`.
+Files rotate daily, older ones are gzipped, and anything older than 14 days is
+deleted. Every request gets an `x-request-id` (accepted from the client if
+safe, otherwise generated), returned in the response and written on every log
+line, so `grep <request-id> logs/errors/*.log` finds a failure. In Docker,
+mount a volume at `/app/logs` to keep them.
 
-## What this service expects at runtime
+### Configuration and HTTP hardening
 
-**No live Dockerfile or deployment manifests ship here either**, for the same
-reason: image build, base-image policy, registries and orchestration are
-DevOps decisions. [`Dockerfile`](Dockerfile) is present but **commented out as
-a reference**, so a developer can see what this service needs from an image
-rather than reconstructing it.
+- All configuration is validated at startup; `.env.example` lists every
+  variable and contains no secrets.
+- `helmet`; CORS is an explicit allowlist (`CORS_ORIGINS`) with credentials
+  off.
+- Swagger is off when `NODE_ENV=production` unless `SWAGGER_ENABLED=true`.
+- Set `TRUST_PROXY_HOPS` to the number of proxies in front of the app, or every
+  request logs the proxy's address.
 
-What a deployment has to provide is a short list:
+### Health
 
-- **Node >= 22.12.** MikroORM v7 is ESM-only and the CommonJS build
-  `require()`s it, which older Node cannot do.
-- **Entry point** is `npm run build`, then `node dist/src/main.js`.
-- **Config from the environment**, never baked into an image.
-  [`.env.example`](.env.example) is the full list; a missing or malformed
-  required value fails the boot with a message naming it.
-- **Probes**: liveness on `/health`, readiness on `/ready`, plus a
-  `startupProbe` (or `initialDelaySeconds`) to cover the migration window —
-  migrations run before the process listens, so nothing answers until they
-  finish. Liveness must not check the database.
-- **Replicas are safe to start together**; the migration lock serializes them.
-- **Logs** are structured JSON on stdout. Keep file transports as an explicit
-  opt-in only where a deployment needs them.
-- **Do not set `NODE_OPTIONS=--max-old-space-size`.** A heap hint larger than
-  the container's memory limit gets the process OOMKilled before V8 collects
-  seriously. Node reads the cgroup limit itself.
-- **Set `TRUST_PROXY_HOPS`** to the number of reverse proxies in front of the
-  process, or the access log records the proxy's address for every caller —
-  see [Client addresses behind a proxy](#client-addresses-behind-a-proxy).
+`GET /health` is liveness only (never touches the database). `GET /ready`
+returns 503 when the database is unreachable or the process is shutting down.
+Both sit outside the API prefix.
 
-## Known gaps
+---
 
-Deliberately not done yet, tracked in the plan:
+## Scope
 
-- A `create-app` scaffolder. Cloning and hand-renaming is where drift starts,
-  but the generator waits until repeated services actually show that drift.
-- Auth and file-upload worked examples.
-- Messaging (RabbitMQ producer/consumer, envelope, retry/DLQ). Deferred until
-  a real adopter exists, so the contract is validated by something rather than
-  derived from principle.
+**Complete (backend)**
 
-### Deliberately left out
+- JWT login / refresh / logout / me; single-use refresh tokens with
+  revocation; user and admin roles; multiple roles per user
+- Browse with search, status filter, created-date range, sort, paging
+- Create, view, edit (owner), soft delete (owner)
+- Vote / unvote with once-per-user, concurrency and closed-status rules
+- Comments with counts; paginated comment list
+- Admin: status, official response, merge with full activity transfer, statistics
+- Admin user management (create, get)
+- Migrations, seeders, validated config, structured logs with daily files
+- Multi-stage Dockerfile and `.dockerignore`; `docker-compose.yml` at the
+  repository root (Postgres, API, idempotent seed, web)
+- 137 unit tests
+- Angular frontend (see [`../web`](../web/README.md))
 
-Not gaps — removed on purpose, recorded here so the decision is not
-re-litigated in every new service.
+**Partial**
 
-- **Rate limiting.** These are internal applications with a small, known user
-  base, behind an nginx reverse proxy. Per-endpoint request ceilings buy
-  little there: the callers are known, the traffic is not hostile, and a
-  gateway is a better place to cap it if it ever needs capping. Shipping a
-  limiter every service inherits and no service tunes is how a 429 reaches a
-  legitimate client and the whole thing gets switched off.
+- **Tests** are unit tests with mocks; no real-Postgres integration tests for
+  the concurrency and merge rules yet.
+- **Seed data** has statuses, roles and users, but no sample feature requests.
 
-  *(An earlier version of this note argued that being behind nginx makes
-  IP-based limiting impossible. That is only true while Express is not told to
-  trust the proxy — with `TRUST_PROXY_HOPS` set correctly, `req.ip` is the
-  real client address and IP limiting works fine. See
-  [Client addresses behind a proxy](#client-addresses-behind-a-proxy). The
-  decision rests on the reasoning above, not on that.)*
+**Deferred on purpose**
 
-  A service that is genuinely internet-facing, or that needs to protect one
-  expensive endpoint, adds `@nestjs/throttler` itself.
+- Undoing a merge (would need the original voters/comments recorded at merge time)
+- Refresh-token reuse detection (revoking all of a user's tokens when a used
+  one is presented again)
+- Notifications to authors and voters (e.g. when a request is merged or released)
+- Trigram index (`pg_trgm`) for `ILIKE '%…%'` search at scale
+- Audit log beyond the `created_by` / `updated_by` columns
 
-  ⚠ **Two things to get right if you do.**
+**Left out on purpose**
 
-  First, `ThrottlerModule.forRoot()` only registers configuration — it does
-  **not** bind the guard. Without the `APP_GUARD` provider below, nothing is
-  rate limited and everything still looks wired.
+- **Rate limiting.** Enforced at the edge (nginx, the Kubernetes ingress or the
+  gateway in front of the service), not in application code. One place to tune
+  it for every service, and abusive traffic is dropped before it reaches Node.
+  Correctness doesn't depend on it: a burst of repeated votes still counts
+  once (votes primary key + `ON CONFLICT`).
 
-  Second, `ThrottlerGuard.getTracker()` returns `req.ip` by default. For
-  per-user limiting, pass a `getTracker` that returns the authenticated user's
-  identifier (this repo ships no auth, so the shape is whatever your auth
-  layer puts on the request):
+---
 
-  ```ts
-  import { APP_GUARD } from '@nestjs/core';
-  import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+## Risks and next steps
 
-  @Module({
-    imports: [
-      ThrottlerModule.forRoot({
-        throttlers: [{ ttl: 60_000, limit: 120 }],
-        getTracker: (req) => req.user?.id ?? `anon:${req.ip}`,
-      }),
-    ],
-    // Without this provider, the module above does nothing.
-    providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
-  })
-  export class AppModule {}
-  ```
+**Known risks**
 
-  Two more that quietly undo it: the guard must run **after** authentication,
-  or there is no user on the request yet; and anonymous callers need a key of
-  their own, or they collapse into one bucket.
+1. **Concurrency is designed, not yet proven by a database test.** The
+   guarantees rest on the votes PK, `FOR UPDATE` and `ON CONFLICT`.
+2. **Repeat vote returns 409.** A client that retries a vote after a network
+   error must treat "already voted" as success.
+3. **Role changes and logout lag up to 15 minutes** for access tokens, which
+   are not checked against the database. A stolen refresh token works until
+   its owner refreshes or logs out; there is no reuse detection yet.
+4. **Hot requests serialise votes.** Every vote on one request waits for the
+   row lock — fine here, a bottleneck for a single viral request.
+5. **`ILIKE '%q%'` search** scans the table.
+6. **`bcrypt` is a native module;** confirm it loads in the Alpine image.
 
-  If you track by IP rather than by user, set `TRUST_PROXY_HOPS` — otherwise
-  `req.ip` is nginx's address and every caller really does share one bucket.
-- **A scheduler.** Most services run no scheduled work, and an example cron
-  job nobody uses is noise. A service that needs one adds
-  `@nestjs/schedule`, imports `ScheduleModule.forRoot()`, and makes its own
-  single-execution decision — a bare `@Cron` fires once per replica.
-- **Live CI configuration, image builds, and deployment manifests.** DevOps
-  owns the runners, registries, base-image policy, SonarQube and
-  orchestration; config committed here would be this repo guessing at their
-  environment, and a stale guess is worse than none.
+**Next steps, in order**
 
-  `Dockerfile` is still in the repo, **commented out**, as a starting point.
+1. Integration tests against real Postgres: 50 concurrent voters → 50; one user
+   voting 10× concurrently → 1; merge with overlapping voters; non-admin → 403.
+2. Seed ~10 sample requests with votes and comments.
+3. Refresh-token reuse detection, the refresh token in an httpOnly cookie, and
+   a scheduled cleanup of expired `refresh_token` rows.
+4. A `pg_trgm` search index.
+5. CI running the gates above for the API and the web app.
 
-  The requirements themselves are in
-  [What a pipeline should verify](#what-a-pipeline-should-verify) and
-  [What this service expects at runtime](#what-this-service-expects-at-runtime).
+---
 
-- **A `docker-compose.yml` for local Postgres.** Removed: the team develops
-  against a locally installed Postgres, and shipping a compose file forced
-  `.env.example` to default to port 5433 to dodge it — so the shipped default
-  was tuned for a container most developers never start. Point `.env` at
-  whatever Postgres you already run.
+## Time spent
+
+_To be filled in before submission._ Git history covers 21 Nov 20:35 → 22 Nov
+00:41; that doesn't include planning before the first commit.

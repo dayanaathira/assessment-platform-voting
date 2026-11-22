@@ -7,6 +7,8 @@ const validEnv = {
   POSTGRES_USER: 'postgres',
   POSTGRES_PASS: 'postgres',
   CORS_ORIGINS: 'http://localhost:4200',
+  JWT_SECRET: 'access-secret-for-tests-0123456789abcdef',
+  JWT_REFRESH_SECRET: 'refresh-secret-for-tests-0123456789abcdef',
 };
 
 describe('validateEnv', () => {
@@ -30,6 +32,34 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...validEnv, POSTGRES_PORT: 'five-thousand' }),
     ).toThrow(/POSTGRES_PORT/);
+  });
+
+  it('applies the token expiry defaults', () => {
+    const env = validateEnv({ ...validEnv });
+
+    expect(env.JWT_EXPIRES_IN).toBe('15m');
+    expect(env.JWT_REFRESH_EXPIRES_IN).toBe('7d');
+  });
+
+  it('rejects a short JWT secret', () => {
+    expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'too-short' })).toThrow(
+      /JWT_SECRET/,
+    );
+  });
+
+  it('rejects the same secret for access and refresh tokens', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        JWT_REFRESH_SECRET: validEnv.JWT_SECRET,
+      }),
+    ).toThrow(/JWT_REFRESH_SECRET/);
+  });
+
+  it('rejects a malformed token expiry', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, JWT_EXPIRES_IN: '15 minutes' }),
+    ).toThrow(/JWT_EXPIRES_IN/);
   });
 
   it('rejects a missing required value', () => {
