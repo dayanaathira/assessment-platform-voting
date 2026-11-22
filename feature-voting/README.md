@@ -9,7 +9,8 @@ NestJS 11 · MikroORM 7 · PostgreSQL · JWT · class-validator · Jest
 > **Scope of this submission:** the backend vertical slice is complete. The
 > Angular frontend is in [`../web`](../web/README.md) and the whole stack runs
 > with one `docker compose up` from the [repository root](../README.md).
-> Real-Postgres concurrency tests are not done — see [Scope](#scope).
+> Concurrency is proven by a live HTTP suite against the deployed stack — see
+> [Testing](#testing).
 
 ---
 
@@ -432,8 +433,31 @@ npm run test:e2e  # existing e2e suite (needs Postgres)
 
 **What these don't prove.** The unit tests check the decisions and that the
 right lock and `ON CONFLICT` are requested. That 50 concurrent votes end at
-exactly 50 depends on Postgres honouring them, and needs an integration test
-against a real database — listed under [next steps](#risks-and-next-steps).
+exactly 50 depends on Postgres honouring them, which the live suite below
+checks.
+
+**Live concurrency tests** ([`test/concurrency.live-spec.ts`](test/concurrency.live-spec.ts))
+run the same rules over HTTP against a deployed instance, with every burst in
+flight at once:
+
+```bash
+LIVE_ADMIN_PASSWORD=… LIVE_TEST_USER_PASSWORD=… npm run test:live
+# LIVE_BASE_URL defaults to https://dayana.cloud, LIVE_ADMIN_USERNAME to admin
+```
+
+| Scenario | Expected |
+| --- | --- |
+| 50 users vote at once | all 200; returned counts are 1–50 with no repeats; final 50 |
+| One user votes 10× at once, then unvotes 10× | 1 × 200 and 9 × 409; then all 200 and back to 0 |
+| 25 unvote while 25 others vote | final 25 |
+| 20 comments at once | `commentCount` and list `total` are 20 |
+| One refresh token sent 5× at once | 1 × 200, 4 × 401 |
+| Same merge sent 5× at once, 10 overlapping voters | 1 × 201, 4 × 409; target 50, `votesMoved` 20 |
+| 20 votes on the source while it's merged | each 200 or 409; every 200 ends up on the target |
+| Non-admin calls every admin route at once | all 403 |
+
+It writes to the target: 50 `lt.*` users (created on the first run, then
+reused) and eight `[Concurrency test]` requests per run.
 
 **CI gates** (no pipeline ships; these are the commands to wire up):
 `npm run lint:check` · `npm run typecheck` · `npm test` ·
@@ -499,8 +523,8 @@ Both sit outside the API prefix.
 
 **Partial**
 
-- **Tests** are unit tests with mocks; no real-Postgres integration tests for
-  the concurrency and merge rules yet.
+- **Tests**: the concurrency and merge rules are proven by the live suite,
+  which needs a deployed instance and isn't wired into CI.
 - **Seed data** has statuses, roles and users, but no sample feature requests.
 
 **Deferred on purpose**
@@ -526,8 +550,10 @@ Both sit outside the API prefix.
 
 **Known risks**
 
-1. **Concurrency is designed, not yet proven by a database test.** The
-   guarantees rest on the votes PK, `FOR UPDATE` and `ON CONFLICT`.
+1. **Concurrency is proven by hand, not on every change.** The live suite
+   passes against the deployed stack, but nothing runs it automatically, so a
+   regression in the votes PK, `FOR UPDATE` or `ON CONFLICT` would only show
+   on the next manual run.
 2. **Repeat vote returns 409.** A client that retries a vote after a network
    error must treat "already voted" as success.
 3. **Role changes and logout lag up to 15 minutes** for access tokens, which
@@ -540,8 +566,7 @@ Both sit outside the API prefix.
 
 **Next steps, in order**
 
-1. Integration tests against real Postgres: 50 concurrent voters → 50; one user
-   voting 10× concurrently → 1; merge with overlapping voters; non-admin → 403.
+1. Run the live suite in CI against a `docker compose` stack.
 2. Seed ~10 sample requests with votes and comments.
 3. Refresh-token reuse detection, the refresh token in an httpOnly cookie, and
    a scheduled cleanup of expired `refresh_token` rows.
