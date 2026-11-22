@@ -15,4 +15,6 @@ export interface AccessTokenPayload {
 /** Refresh token claims; roles are reloaded from the database on refresh. */
 export interface RefreshTokenPayload {
   sub: string;
+  // Id of the refresh_token row; absent on tokens issued before rotation.
+  jti?: string;
 }
