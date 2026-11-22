@@ -7,8 +7,9 @@ merge duplicates and view usage statistics.
 NestJS 11 · MikroORM 7 · PostgreSQL · JWT · class-validator · Jest
 
 > **Scope of this submission:** the backend vertical slice is complete. The
-> Angular frontend, the `docker-compose.yml` and real-Postgres concurrency
-> tests are not done — see [Scope](#scope).
+> Angular frontend is in [`../web`](../web/README.md) and the whole stack runs
+> with one `docker compose up` from the [repository root](../README.md).
+> Real-Postgres concurrency tests are not done — see [Scope](#scope).
 
 ---
 
@@ -65,6 +66,9 @@ Seeded logins: `admin` / `SEED_ADMIN_PASSWORD`, and `user1`–`user3` /
 `SEED_USER_PASSWORD`.
 
 **Tests:** `npm test` (unit, no database needed). See [Testing](#testing).
+
+**Everything in Docker** (Postgres, API, seed, web): see the
+[root README](../README.md#run-everything-with-docker).
 
 **Docker image:** `docker build -t feature-voting-api .` builds a multi-stage
 image that runs as the unprivileged `node` user on port 3000 and applies
@@ -132,6 +136,7 @@ erDiagram
     user ||--o{ comment : writes
     feature_request ||--o| request_merge : "source (unique)"
     feature_request ||--o{ request_merge : target
+    user ||--o{ refresh_token : "signed in as"
 
     user {
         uuid id PK
@@ -179,6 +184,12 @@ erDiagram
         int votes_moved
         int comments_moved
     }
+    refresh_token {
+        uuid id PK "JWT jti"
+        uuid user_id FK "ON DELETE CASCADE"
+        timestamptz expires_at
+        timestamptz revoked_at "null while usable"
+    }
 ```
 
 Audit columns (`created_at`, `updated_at`, `created_by`, `updated_by`,
@@ -198,7 +209,7 @@ Audit columns (`created_at`, `updated_at`, `created_by`, `updated_by`,
 **Indexes:** `feature_request (status_id)`, `(vote_count DESC)`,
 `(created_at DESC)`; `comment (feature_request_id, created_at)`;
 `votes (feature_request_id)` (the PK leads with `user_id`);
-`request_merge (target_request_id)`.
+`request_merge (target_request_id)`; `refresh_token (user_id)`.
 
 **Statuses** (seeded): 1 Under Review · 2 Planned · 3 In Progress ·
 4 Released · 5 Declined. Released and Declined are *closed*: votes are frozen.
@@ -217,7 +228,8 @@ token unless marked public.
 | Method | Path | Access | Notes |
 | --- | --- | --- | --- |
 | POST | `/auth/login` | public | `{ username, password }` → `{ accessToken, refreshToken }` |
-| POST | `/auth/refresh` | public | `{ refreshToken }` → new pair; roles reloaded from the DB |
+| POST | `/auth/refresh` | public | `{ refreshToken }` → new pair; the token sent is revoked (single use); roles reloaded from the DB |
+| POST | `/auth/logout` | public | `{ refreshToken }` → revokes it; always 200 |
 | GET | `/auth/me` | user | `{ id, name, roles[] }` |
 | GET | `/feature-request` | user | `q`, `status`, `fromDate`/`toDate` (`DD-MM-YYYY`), `sort=votes\|new`, `limit`, `offset`. Excludes merged and deleted. Each item has `hasVoted`, `canVote`. |
 | GET | `/feature-request/status` | public | The 5 statuses |
@@ -249,7 +261,7 @@ database error.
 
 | Rule | Where it's enforced |
 | --- | --- |
-| Every route needs a valid access token | Global `JwtAuthGuard`; `@Public()` opts out (login, refresh, statuses, probes) |
+| Every route needs a valid access token | Global `JwtAuthGuard`; `@Public()` opts out (login, refresh, logout, statuses, probes) |
 | Only admins change status, respond, merge, report, manage users | Global `RolesGuard` + `@Roles(ROLE.ADMIN)` on those controllers → 403 |
 | A user can't edit or delete another user's request | Owner check in `FeatureRequestService` → 403 |
 | Merged requests are read-only | Service checks → 409 |
@@ -268,11 +280,20 @@ sequenceDiagram
     alt wrong username or password
         A-->>C: 401 "Invalid username or password" (same for both)
     else ok
-        A-->>C: accessToken {sub, name, roles[]} (15m, JWT_SECRET)<br/>refreshToken {sub} (7d, JWT_REFRESH_SECRET)
+        A->>DB: INSERT refresh_token (id = jti, expires_at)
+        A-->>C: accessToken {sub, name, roles[]} (15m, JWT_SECRET)<br/>refreshToken {sub, jti} (7d, JWT_REFRESH_SECRET)
     end
     C->>A: POST /auth/refresh {refreshToken}
-    A->>DB: reload user + roles
-    A-->>C: new pair (role changes apply here)
+    A->>DB: BEGIN; SELECT refresh_token WHERE id = jti AND user_id = sub FOR UPDATE
+    alt missing or revoked
+        A-->>C: 401
+    else usable
+        A->>DB: revoked_at = now(); reload user + roles; INSERT new refresh_token; COMMIT
+        A-->>C: new pair (role changes apply here)
+    end
+    C->>A: POST /auth/logout {refreshToken}
+    A->>DB: UPDATE refresh_token SET revoked_at = now() WHERE id = jti
+    A-->>C: 200 (also for invalid or already revoked tokens)
 ```
 
 - Passwords are hashed with bcrypt (12 rounds) and limited to 72 bytes, bcrypt's
@@ -280,6 +301,17 @@ sequenceDiagram
 - Access and refresh tokens use different secrets, so neither can stand in for
   the other. Both verify with `HS256` only.
 - Usernames are trimmed and lower-cased on create and login.
+- **Refresh tokens are single use.** Each carries a `jti` stored in
+  `refresh_token`; refresh revokes it and issues a new one. The row lock means
+  two concurrent refreshes with the same token can't both succeed. The token
+  itself isn't stored: a `jti` is useless without a token signed with
+  `JWT_REFRESH_SECRET`.
+- **Logout revokes** the refresh token. Like OAuth token revocation (RFC 7009)
+  it always answers 200, so it doesn't reveal whether a token was live.
+- Expired rows for a user are deleted at their next login.
+- **Access tokens are not revocable:** they stay valid until they expire
+  (15 minutes), the accepted cost of not checking the database on every
+  request.
 
 ### Voting
 
@@ -371,7 +403,7 @@ which MikroORM wraps in a transaction.
 | **Soft delete (`delete_flag`) with a default MikroORM filter** | Every ORM query skips deleted rows automatically; history kept. | Hard delete (would drop other users' comments); `deleted_at` timestamp. |
 | **Comments on their own paginated endpoint** | Detail stays at 4 parallel queries; comments load on demand with an index-backed `LIMIT/OFFSET`. | Populating `comments` on the request: MikroORM's per-parent limit uses `row_number()` over every comment and adds a sequential round trip. |
 | **`limit` / `offset` paging** | Simple, matches the UI; `offset` capped at 10 000. | Cursor paging — better for deep pages, not needed at this size. |
-| **Stateless JWT access (15m) + refresh (7d), separate secrets** | No session store; role changes apply at the next refresh. | Refresh tokens in a table (revocable) — deferred. Passport — one more dependency for what a 40-line guard does. |
+| **Stateless JWT access (15m) + single-use refresh (7d) tracked by `jti`, separate secrets** | Access checks need no database; refresh and logout can revoke, so a copied refresh token stops working once used or logged out. Role changes apply at the next refresh. | Fully stateless refresh tokens: simpler, but a stolen token works for 7 days and logout is client-only. A `token_version` column on `user`: one migration column, but every refresh or login logs out the user's other devices and tabs. Passport: one more dependency for what a 40-line guard does. |
 | **bcrypt** for passwords | Standard, well understood. | Node's built-in `scrypt` (no native dependency). |
 | **Explicit `fromDate` / `toDate` as `DD-MM-YYYY`, whole days in `+08:00`** | Matches how users think about dates; `toDate` is inclusive. | ISO timestamps from the client. |
 | **Validation with class-validator DTOs and `forbidNonWhitelisted`** | Unknown fields are a 400, which also blocks mass assignment. | Silently stripping unknown fields. |
@@ -386,17 +418,17 @@ npm run test:cov  # with coverage
 npm run test:e2e  # existing e2e suite (needs Postgres)
 ```
 
-**122 unit tests in 20 suites.** The business-rule ones:
+**137 unit tests in 21 suites.** The business-rule ones:
 
 | Spec | Covers |
 | --- | --- |
 | `common/guards/roles.guard.spec.ts` | admin passes, multi-role passes, `user` / no roles / no user → 403 |
 | `common/guards/jwt-auth.guard.spec.ts` | public routes; missing, malformed, tampered, expired tokens and a refresh token used as access → 401 |
-| `login/login.service.spec.ts` | roles in the token; wrong password and unknown user give the same 401; refresh reloads roles, rejects access tokens and deleted users |
+| `login/login.service.spec.ts` | roles in the token; wrong password and unknown user give the same 401; login stores the `jti` row and clears expired ones; refresh rotates (old revoked, new row), locks the row, and rejects reused, unknown, pre-rotation, access and deleted-user tokens; logout revokes, and ignores junk |
 | `feature-request/feature-request.service.spec.ts` | vote +1 only on insert; repeat → 409, count unchanged; lock taken; closed and merged → 409; unvote no-op; edit/delete 404 / 403 (not owner) / 409 (merged) with no write |
 | `admin/merge.service.spec.ts` | self → 400 with no DB access; missing → 404; three chain cases → 409; lock order; overlapping voters counted once; recount; `votesMoved` |
 | `admin/admin.service.spec.ts` | status/response 404 and 409 |
-| `…/list-feature-request-query.dto.spec.ts`, `user/dtos/add-user.dto.spec.ts` | the real `ValidationPipe` settings: defaults, normalisation, every rejected input |
+| `…/list-feature-request-query.dto.spec.ts`, `…/feature-request-input.dto.spec.ts`, `user/dtos/add-user.dto.spec.ts` | the real `ValidationPipe` settings: defaults, trimming (title, description), every rejected input |
 
 **What these don't prove.** The unit tests check the decisions and that the
 right lock and `ON CONFLICT` are requested. That 50 concurrent votes end at
@@ -451,7 +483,8 @@ Both sit outside the API prefix.
 
 **Complete (backend)**
 
-- JWT login / refresh / me; user and admin roles; multiple roles per user
+- JWT login / refresh / logout / me; single-use refresh tokens with
+  revocation; user and admin roles; multiple roles per user
 - Browse with search, status filter, created-date range, sort, paging
 - Create, view, edit (owner), soft delete (owner)
 - Vote / unvote with once-per-user, concurrency and closed-status rules
@@ -459,24 +492,22 @@ Both sit outside the API prefix.
 - Admin: status, official response, merge with full activity transfer, statistics
 - Admin user management (create, get)
 - Migrations, seeders, validated config, structured logs with daily files
-- Multi-stage Dockerfile and `.dockerignore`
-- 122 unit tests
+- Multi-stage Dockerfile and `.dockerignore`; `docker-compose.yml` at the
+  repository root (Postgres, API, idempotent seed, web)
+- 137 unit tests
+- Angular frontend (see [`../web`](../web/README.md))
 
 **Partial**
 
 - **Tests** are unit tests with mocks; no real-Postgres integration tests for
   the concurrency and merge rules yet.
 - **Seed data** has statuses, roles and users, but no sample feature requests.
-- **Docker** has an image but no `docker-compose.yml` (Postgres + API + web).
-
-**Not started**
-
-- **Angular frontend** (login, list, detail, form, admin dashboard).
 
 **Deferred on purpose**
 
 - Undoing a merge (would need the original voters/comments recorded at merge time)
-- Revocable refresh tokens / logout (needs a token table)
+- Refresh-token reuse detection (revoking all of a user's tokens when a used
+  one is presented again)
 - Notifications to authors and voters (e.g. when a request is merged or released)
 - Trigram index (`pg_trgm`) for `ILIKE '%…%'` search at scale
 - Audit log beyond the `created_by` / `updated_by` columns
@@ -499,8 +530,9 @@ Both sit outside the API prefix.
    guarantees rest on the votes PK, `FOR UPDATE` and `ON CONFLICT`.
 2. **Repeat vote returns 409.** A client that retries a vote after a network
    error must treat "already voted" as success.
-3. **Role changes lag up to 15 minutes** (access token lifetime); a stolen
-   refresh token stays valid until it expires.
+3. **Role changes and logout lag up to 15 minutes** for access tokens, which
+   are not checked against the database. A stolen refresh token works until
+   its owner refreshes or logs out; there is no reuse detection yet.
 4. **Hot requests serialise votes.** Every vote on one request waits for the
    row lock — fine here, a bottleneck for a single viral request.
 5. **`ILIKE '%q%'` search** scans the table.
@@ -508,14 +540,13 @@ Both sit outside the API prefix.
 
 **Next steps, in order**
 
-1. `docker-compose.yml` with Postgres, the API (logs volume, `SWAGGER_ENABLED`)
-   and the web app.
-2. Integration tests against real Postgres: 50 concurrent voters → 50; one user
+1. Integration tests against real Postgres: 50 concurrent voters → 50; one user
    voting 10× concurrently → 1; merge with overlapping voters; non-admin → 403.
-3. Seed ~10 sample requests with votes and comments.
-4. Angular frontend.
-5. Revocable refresh tokens and a `pg_trgm` search index.
-6. CI running the gates above.
+2. Seed ~10 sample requests with votes and comments.
+3. Refresh-token reuse detection, the refresh token in an httpOnly cookie, and
+   a scheduled cleanup of expired `refresh_token` rows.
+4. A `pg_trgm` search index.
+5. CI running the gates above for the API and the web app.
 
 ---
 
