@@ -1,0 +1,53 @@
+<section class="card" aria-labelledby="comments-heading">
+  <h2 id="comments-heading">Comments ({{ total() }})</h2>
+
+  <form (ngSubmit)="post()" class="new-comment">
+    <label for="comment-body">Add a comment</label>
+    <textarea
+      id="comment-body"
+      rows="3"
+      [formControl]="body"
+      [attr.maxlength]="maxLength"
+      [attr.aria-invalid]="body.invalid && body.touched"
+      aria-describedby="comment-error"
+    ></textarea>
+    @if (body.invalid && body.touched) {
+      <p id="comment-error" class="field-error">Write something before posting.</p>
+    }
+    <div aria-live="polite">
+      @if (postError()) {
+        <p class="alert">{{ postError() }}</p>
+      }
+    </div>
+    <button type="submit" class="btn-primary" [disabled]="posting()">
+      {{ posting() ? 'Posting…' : 'Post comment' }}
+    </button>
+  </form>
+
+  @if (loading()) {
+    <p class="muted">Loading comments…</p>
+  } @else if (error()) {
+    <p class="alert" role="alert">{{ error() }}</p>
+  } @else if (comments().length === 0) {
+    <p class="muted">No comments yet.</p>
+  } @else {
+    <ul class="comments">
+      @for (comment of comments(); track comment.id) {
+        <li>
+          <p class="meta">
+            <strong>{{ comment.user.name }}</strong>
+            <time class="muted" [attr.datetime]="comment.createdAt">
+              {{ comment.createdAt | date: 'd MMM y, HH:mm' }}
+            </time>
+          </p>
+          <p class="text">{{ comment.body }}</p>
+        </li>
+      }
+    </ul>
+    @if (comments().length < total()) {
+      <button type="button" (click)="loadMore()" [disabled]="loadingMore()">
+        {{ loadingMore() ? 'Loading…' : 'Show older comments' }}
+      </button>
+    }
+  }
+</section>

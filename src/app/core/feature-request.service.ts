@@ -2,7 +2,15 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable, shareReplay } from 'rxjs';
 import { API_URL } from './api';
-import { ApiResponse, FeatureRequest, FeatureRequestQuery, Page, Status, VoteResult } from './models';
+import {
+  ApiResponse,
+  Comment,
+  FeatureRequest,
+  FeatureRequestQuery,
+  Page,
+  Status,
+  VoteResult,
+} from './models';
 
 @Injectable({ providedIn: 'root' })
 export class FeatureRequestService {
@@ -25,6 +33,51 @@ export class FeatureRequestService {
   list(query: FeatureRequestQuery): Observable<Page<FeatureRequest>> {
     return this.http
       .get<ApiResponse<Page<FeatureRequest>>>(this.url, { params: toParams(query) })
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * One request with the user's vote state and merge links.
+   * @param id - Feature request id.
+   * @returns The request.
+   */
+  get(id: string): Observable<FeatureRequest> {
+    return this.http
+      .get<ApiResponse<FeatureRequest>>(`${this.url}/${id}`)
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Soft-deletes a request. The API allows the author only.
+   * @param id - Feature request id.
+   * @returns Completes when deleted.
+   */
+  remove(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.url}/${id}`);
+  }
+
+  /**
+   * One page of comments, newest first.
+   * @param id - Feature request id.
+   * @param limit - Page size.
+   * @param offset - Comments to skip.
+   * @returns The page and the total count.
+   */
+  comments(id: string, limit: number, offset: number): Observable<Page<Comment>> {
+    return this.http
+      .get<ApiResponse<Page<Comment>>>(`${this.url}/${id}/comments`, { params: { limit, offset } })
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Adds a comment.
+   * @param id - Feature request id.
+   * @param body - Comment text.
+   * @returns The created comment.
+   */
+  addComment(id: string, body: string): Observable<Comment> {
+    return this.http
+      .post<ApiResponse<Comment>>(`${this.url}/${id}/comments`, { body })
       .pipe(map((res) => res.data));
   }
 

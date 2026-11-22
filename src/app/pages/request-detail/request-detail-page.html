@@ -1,0 +1,86 @@
+<a routerLink="/feature-requests" class="back">← All requests</a>
+
+@if (loading() && !request()) {
+  <p class="muted">Loading request…</p>
+} @else if (error()) {
+  <p class="alert" role="alert">{{ error() }}</p>
+} @else if (request(); as r) {
+  @if (mergeResult(); as m) {
+    <p class="success" role="status">
+      Merged. {{ m.votesMoved }} new {{ m.votesMoved === 1 ? 'vote' : 'votes' }} and
+      {{ m.commentsMoved }} {{ m.commentsMoved === 1 ? 'comment' : 'comments' }} moved to the target.
+    </p>
+  }
+
+  @if (r.mergedInto; as target) {
+    <div class="banner" role="note">
+      This request was merged into
+      <a [routerLink]="['/feature-requests', target.id]">{{ target.title }}</a>
+      by {{ target.mergedBy.name }} on {{ target.mergedAt | date: 'd MMM y' }}. Its votes and
+      comments now live there.
+    </div>
+  }
+
+  <article class="card">
+    <div class="head">
+      @if (voteState(); as vote) {
+        <app-vote-button [request]="vote" (voted)="onVoted($event)" />
+      }
+      <div class="title">
+        <h1>{{ r.title }}</h1>
+        <p class="meta muted">
+          <app-status-badge [status]="r.status" />
+          <span>{{ r.createdBy.name }}</span>
+          <time [attr.datetime]="r.createdAt">{{ r.createdAt | date: 'd MMM y' }}</time>
+          <span>{{ r.commentCount }} {{ r.commentCount === 1 ? 'comment' : 'comments' }}</span>
+        </p>
+      </div>
+    </div>
+
+    <p class="description">{{ r.description }}</p>
+
+    @if (r.mergedFrom?.length) {
+      <div class="merged-from">
+        <h2>Merged into this request</h2>
+        <ul>
+          @for (source of r.mergedFrom; track source.id) {
+            <li><a [routerLink]="['/feature-requests', source.id]">{{ source.title }}</a></li>
+          }
+        </ul>
+      </div>
+    }
+
+    @if (isOwner() && !isMerged()) {
+      <div class="actions">
+        <a class="btn" [routerLink]="['/feature-requests', r.id, 'edit']">Edit</a>
+        <button type="button" class="btn-danger" [disabled]="deleting()" (click)="remove()">
+          {{ deleting() ? 'Deleting…' : 'Delete' }}
+        </button>
+      </div>
+      @if (actionError()) {
+        <p class="alert" role="alert">{{ actionError() }}</p>
+      }
+    }
+  </article>
+
+  @if (r.officialResponse) {
+    <section class="card response" aria-labelledby="response-heading">
+      <h2 id="response-heading">Official response</h2>
+      <p class="description">{{ r.officialResponse }}</p>
+      <p class="muted small">
+        {{ r.officialResponseBy?.name }}
+        @if (r.officialResponseAt) {
+          · <time [attr.datetime]="r.officialResponseAt">{{ r.officialResponseAt | date: 'd MMM y' }}</time>
+        }
+      </p>
+    </section>
+  }
+
+  @if (auth.isAdmin() && !isMerged()) {
+    <app-admin-panel [request]="r" (updated)="request.set($event)" (merged)="onMerged($event)" />
+  }
+
+  @if (!isMerged()) {
+    <app-comment-section [requestId]="r.id" (added)="onCommentAdded()" />
+  }
+}

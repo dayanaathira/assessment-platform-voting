@@ -1,0 +1,66 @@
+<section class="card admin" aria-labelledby="admin-heading">
+  <h2 id="admin-heading">Admin</h2>
+
+  <div aria-live="polite">
+    @if (message()) {
+      <p class="success">{{ message() }}</p>
+    }
+    @if (error()) {
+      <p class="alert">{{ error() }}</p>
+    }
+  </div>
+
+  <form class="row" (ngSubmit)="saveStatus()">
+    <div class="grow">
+      <label for="admin-status">Status</label>
+      <select id="admin-status" [formControl]="statusId">
+        @for (status of statuses(); track status.id) {
+          <option [ngValue]="status.id">{{ status.name }}</option>
+        }
+      </select>
+    </div>
+    <button type="submit" [disabled]="busy() !== null || statusId.value === request().status.id">
+      {{ busy() === 'status' ? 'Saving…' : 'Update status' }}
+    </button>
+  </form>
+
+  <form (ngSubmit)="saveResponse()">
+    <label for="admin-response">Official response</label>
+    <textarea
+      id="admin-response"
+      rows="3"
+      [formControl]="response"
+      [attr.maxlength]="maxLength"
+      [attr.aria-invalid]="response.invalid && response.touched"
+    ></textarea>
+    @if (response.invalid && response.touched) {
+      <p class="field-error">Write a response before saving.</p>
+    }
+    <button type="submit" [disabled]="busy() !== null">
+      {{ busy() === 'response' ? 'Saving…' : 'Save response' }}
+    </button>
+  </form>
+
+  <div class="merge">
+    <label for="merge-search">Merge into another request</label>
+    <input
+      id="merge-search"
+      type="search"
+      [formControl]="search"
+      placeholder="Search the request to keep"
+      maxlength="100"
+    />
+    @if (candidates().length) {
+      <ul class="candidates">
+        @for (candidate of candidates(); track candidate.id) {
+          <li>
+            <span>{{ candidate.title }} <span class="muted">({{ candidate.voteCount }} votes)</span></span>
+            <button type="button" class="btn-danger" [disabled]="busy() !== null" (click)="mergeInto(candidate)">
+              {{ busy() === 'merge' ? 'Merging…' : 'Merge into this' }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>
