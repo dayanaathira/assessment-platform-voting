@@ -32,6 +32,7 @@ services:
   api:
     build: ./feature-voting
     image: feature-voting-api
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       db:
@@ -72,7 +73,9 @@ services:
   # One-off: statuses, roles, admin and user1-user3. Idempotent, so it is safe
   # on every `up`; it waits for the api so migrations have been applied.
   seed:
+    # Reuses the image the api service builds; it is not on any registry.
     image: feature-voting-api
+    pull_policy: never
     depends_on:
       api:
         condition: service_healthy
