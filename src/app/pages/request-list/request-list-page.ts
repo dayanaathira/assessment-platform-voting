@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
@@ -27,7 +27,9 @@ import {
 import { StatusBadge } from '../../shared/status-badge';
 import { VoteButton } from '../../shared/vote-button';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+// The API caps offset at 10000.
+const MAX_PAGE = 10000 / PAGE_SIZE + 1;
 
 @Component({
   selector: 'app-request-list-page',
@@ -40,7 +42,6 @@ export class RequestListPage {
   private readonly service = inject(FeatureRequestService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly reload$ = new Subject<void>();
   private query: FeatureRequestQuery = {};
 
@@ -57,8 +58,10 @@ export class RequestListPage {
   protected readonly total = signal(0);
   protected readonly loading = signal(true);
   protected readonly error = signal('');
-  protected readonly loadingMore = signal(false);
-  protected readonly moreError = signal('');
+  protected readonly page = signal(1);
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
+  protected readonly firstShown = computed(() => (this.page() - 1) * PAGE_SIZE + 1);
+  protected readonly lastShown = computed(() => this.firstShown() + this.items().length - 1);
 
   constructor() {
     // The URL is the source of truth: the form writes to it and the list reads from it,
@@ -68,14 +71,14 @@ export class RequestListPage {
         map(([query]) => query),
         tap((query) => {
           this.query = query;
+          this.page.set((query.offset ?? 0) / PAGE_SIZE + 1);
           this.filters.patchValue(toForm(query), { emitEvent: false });
           this.loading.set(true);
           this.error.set('');
-          this.moreError.set('');
         }),
         // switchMap drops the previous request, so a slow old response can't overwrite a newer one.
         switchMap((query) =>
-          this.service.list({ ...query, limit: PAGE_SIZE, offset: 0 }).pipe(
+          this.service.list({ ...query, limit: PAGE_SIZE }).pipe(
             catchError((err) => {
               this.error.set(errorMessage(err));
               this.loading.set(false);
@@ -86,6 +89,11 @@ export class RequestListPage {
         takeUntilDestroyed(),
       )
       .subscribe((page) => {
+        // Past the end (e.g. ?page=99, or the last item was deleted): go to the last page.
+        if (page.items.length === 0 && page.total > 0 && this.page() > 1) {
+          this.goToPage(Math.ceil(page.total / PAGE_SIZE), true);
+          return;
+        }
         this.items.set(page.items);
         this.total.set(page.total);
         this.loading.set(false);
@@ -120,32 +128,19 @@ export class RequestListPage {
   }
 
   /**
-   * Appends the next page. Ignored if the filters changed while it was loading.
+   * Moves to another page, keeping the filters.
+   * @param page - 1-based page number.
+   * @param replaceUrl - Replace the history entry instead of adding one.
    * @returns Nothing.
    */
-  protected loadMore(): void {
-    const query = this.query;
-    this.loadingMore.set(true);
-    this.moreError.set('');
-    this.service
-      .list({ ...query, limit: PAGE_SIZE, offset: this.items().length })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (page) => {
-          this.loadingMore.set(false);
-          if (query !== this.query) {
-            return;
-          }
-          // Votes can reorder rows between pages; skip any already shown.
-          const shown = new Set(this.items().map((item) => item.id));
-          this.items.update((items) => [...items, ...page.items.filter((i) => !shown.has(i.id))]);
-          this.total.set(page.total);
-        },
-        error: (err) => {
-          this.loadingMore.set(false);
-          this.moreError.set(errorMessage(err));
-        },
-      });
+  protected goToPage(page: number, replaceUrl = false): void {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { page: page > 1 ? page : null },
+      queryParamsHandling: 'merge',
+      replaceUrl,
+    });
+    window.scrollTo({ top: 0 });
   }
 
   /**
@@ -163,6 +158,7 @@ export class RequestListPage {
 
   /**
    * Writes the form to the URL; the query param subscription then loads the list.
+   * Page is left out, so any filter change goes back to page 1.
    * @returns Nothing.
    */
   private applyFilters(): void {
@@ -188,12 +184,14 @@ export class RequestListPage {
  */
 function toQuery(params: ParamMap): FeatureRequestQuery {
   const status = Number(params.get('status'));
+  const page = Number(params.get('page'));
   return {
     q: params.get('q')?.trim() || undefined,
     status: Number.isInteger(status) && status > 0 ? status : undefined,
     fromDate: isoDateOrUndefined(params.get('fromDate')),
     toDate: isoDateOrUndefined(params.get('toDate')),
     sort: params.get('sort') === 'new' ? 'new' : 'votes',
+    offset: Number.isInteger(page) && page > 1 ? (Math.min(page, MAX_PAGE) - 1) * PAGE_SIZE : 0,
   };
 }
 
