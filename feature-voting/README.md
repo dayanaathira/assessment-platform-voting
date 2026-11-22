@@ -313,6 +313,10 @@ sequenceDiagram
 - **Access tokens are not revocable:** they stay valid until they expire
   (15 minutes), the accepted cost of not checking the database on every
   request.
+- **Sessions slide.** Each refresh issues a refresh token with a fresh 7-day
+  lifetime (`JWT_REFRESH_EXPIRES_IN`), so a user who comes back within a week
+  stays signed in indefinitely. There is no absolute session limit or idle
+  timeout yet.
 
 ### Voting
 
@@ -563,6 +567,9 @@ Both sit outside the API prefix.
    row lock — fine here, a bottleneck for a single viral request.
 5. **`ILIKE '%q%'` search** scans the table.
 6. **`bcrypt` is a native module;** confirm it loads in the Alpine image.
+7. **No absolute session limit.** Rotation restarts the refresh window, so an
+   active session never ends on its own; only logout or 7 days without use
+   ends it.
 
 **Next steps, in order**
 
@@ -570,8 +577,12 @@ Both sit outside the API prefix.
 2. Seed ~10 sample requests with votes and comments.
 3. Refresh-token reuse detection, the refresh token in an httpOnly cookie, and
    a scheduled cleanup of expired `refresh_token` rows.
-4. A `pg_trgm` search index.
-5. CI running the gates above for the API and the web app.
+4. Cap the session: a rotated refresh token keeps the expiry from login
+   instead of a fresh 7 days (no schema change, the old token's `exp` is
+   carried over), plus an optional "Stay signed in?" prompt after inactivity
+   in the web app.
+5. A `pg_trgm` search index.
+6. CI running the gates above for the API and the web app.
 
 ---
 

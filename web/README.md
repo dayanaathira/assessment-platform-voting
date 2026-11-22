@@ -298,3 +298,5 @@ the interceptor's skip list, removing the multi-tab fallback, removing the
 - Access tokens stay valid up to 15 minutes after logout (they are not checked
   against the database).
 - Multi-tab token sharing works within one browser profile only.
+- Silent refresh keeps a user signed in as long as they return within 7 days;
+  there is no idle timeout or "Stay signed in?" prompt.
