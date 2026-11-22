@@ -10,8 +10,8 @@ import { AuthService } from './auth.service';
  * @returns The response stream.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  // Login and refresh carry their own credentials, and a 401 there must reach the caller.
-  if (req.url.endsWith('/auth/login') || req.url.endsWith('/auth/refresh')) {
+  // Login, refresh and logout carry their own credentials, and a 401 there must reach the caller.
+  if (/\/auth\/(login|refresh|logout)$/.test(req.url)) {
     return next(req);
   }
 

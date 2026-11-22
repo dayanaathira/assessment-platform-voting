@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize, map, Observable, shareReplay, throwError } from 'rxjs';
+import { catchError, finalize, map, Observable, of, shareReplay, throwError } from 'rxjs';
 import { API_URL } from './api';
 import { ApiResponse, AuthUser, Tokens } from './models';
 
@@ -50,6 +50,17 @@ export class AuthService {
           this.store(res.data);
           return res.data.accessToken;
         }),
+        catchError((err) => {
+          // Refresh tokens work once. If another tab rotated this one first, it has
+          // already stored the new pair, so use that instead of logging out.
+          const latest = localStorage.getItem(REFRESH_KEY);
+          const access = localStorage.getItem(ACCESS_KEY);
+          if (latest && access && latest !== refreshToken) {
+            this.accessToken.set(access);
+            return of(access);
+          }
+          return throwError(() => err);
+        }),
         finalize(() => (this.refreshing$ = undefined)),
         shareReplay(1),
       );
@@ -71,6 +82,13 @@ export class AuthService {
    * @returns Nothing.
    */
   logout(expired = false): void {
+    // Revoke on the server so a copied refresh token stops working too. Fire and forget:
+    // the user is logged out locally either way. Skipped when the token already failed.
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (!expired && refreshToken) {
+      this.http.post(`${API_URL}/auth/logout`, { refreshToken }).subscribe({ error: () => {} });
+    }
+
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
     this.accessToken.set(null);
