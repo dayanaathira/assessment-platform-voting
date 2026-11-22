@@ -1,0 +1,138 @@
+{
+  "name": "feature-voting",
+  "version": "0.0.1",
+  "description": "",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/src/main.js",
+    "seed": "npm run build && node dist/src/seed.js",
+    "migration:create": "mikro-orm migration:create",
+    "migration:up": "mikro-orm migration:up",
+    "migration:down": "mikro-orm migration:down",
+    "check:migrations": "bash scripts/check-migration-for-entity-change.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@mikro-orm/core": "^7.2.1",
+    "@mikro-orm/migrations": "^7.2.1",
+    "@mikro-orm/nestjs": "^7.0.2",
+    "@mikro-orm/postgresql": "^7.2.1",
+    "@mikro-orm/reflection": "^7.2.1",
+    "@mikro-orm/seeder": "^7.2.1",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/jwt": "^12.0.5",
+    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/swagger": "^11.4.6",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^17.4.2",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "helmet": "^8.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "morgan": "^1.11.0",
+    "nest-winston": "^1.10.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@eslint/eslintrc": "^3.3.6",
+    "@eslint/js": "^10.0.1",
+    "@mikro-orm/cli": "^7.2.1",
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/schematics": "^11.1.0",
+    "@nestjs/testing": "^11.1.28",
+    "@swc/core": "^1.16.2",
+    "@swc/jest": "^0.2.39",
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^26.2.0",
+    "@types/supertest": "^7.2.1",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "globals": "^17.9.0",
+    "jest": "^30.4.2",
+    "prettier": "^3.9.6",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.2.2",
+    "ts-loader": "^9.6.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0"
+  },
+  "lint-staged": {
+    "*.ts": "eslint --fix"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "coverageDirectory": "<rootDir>/../coverage",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": [
+        "@swc/jest",
+        {}
+      ]
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s",
+      "!**/node_modules/**",
+      "!**/*.module.ts",
+      "!**/*.dto.ts",
+      "!**/*.enum.ts",
+      "!**/*.entity.ts",
+      "!**/*.const.ts",
+      "!**/*.config.ts",
+      "!**/*.seeder.ts",
+      "!main.ts",
+      "!seed.ts"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "\\.(module|dto|enum|entity|const|config|seeder)\\.ts$"
+    ],
+    "testEnvironment": "node",
+    "transformIgnorePatterns": []
+  },
+  "mikro-orm": {
+    "useTsNode": true,
+    "tsConfigPath": "./tsconfig.orm.json",
+    "configPaths": [
+      "./mikro-orm.config.ts",
+      "./dist/mikro-orm.config.js"
+    ]
+  }
+}
