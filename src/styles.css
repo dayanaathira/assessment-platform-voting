@@ -58,8 +58,9 @@ button,
 }
 
 .btn-danger {
-  color: var(--danger);
+  background: var(--danger);
   border-color: var(--danger);
+  color: #fff;
 }
 
 button:disabled {

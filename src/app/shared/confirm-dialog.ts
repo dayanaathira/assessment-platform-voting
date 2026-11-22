@@ -30,7 +30,7 @@ import { ConfirmService } from './confirm.service';
             <button type="button" autofocus (click)="confirm.close(false)">Cancel</button>
             <button
               type="button"
-              [class]="options.danger ? 'danger' : 'btn-primary'"
+              [class]="options.danger ? 'btn-danger' : 'btn-primary'"
               (click)="confirm.close(true)"
             >
               {{ options.confirmText ?? 'Confirm' }}
@@ -69,11 +69,6 @@ import { ConfirmService } from './confirm.service';
       display: flex;
       justify-content: flex-end;
       gap: 0.5rem;
-    }
-    .danger {
-      background: var(--danger);
-      border-color: var(--danger);
-      color: #fff;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
