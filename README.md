@@ -22,9 +22,9 @@ The API, data model and integrity rules are in the
 - [Accessibility](#accessibility)
 - [Performance](#performance)
 - [Security](#security)
+- [Testing](#testing)
 - [Decisions and rejected alternatives](#decisions-and-rejected-alternatives)
 - [Scope](#scope)
-- [Next steps](#next-steps)
 
 ---
 
@@ -48,6 +48,8 @@ API_TARGET=http://10.0.0.5:3000 npm start
 Log in with the seeded users from the API README (`admin`, `user1`–`user3`).
 
 **Production build:** `npm run build` → `dist/web/browser`.
+
+**Tests:** `npx ng test --watch=false` (Vitest + jsdom, no API needed). See [Testing](#testing).
 
 **Docker:** a multi-stage image; Node builds, then non-root nginx serves the
 static files on port 8080 and proxies the API.
@@ -93,7 +95,8 @@ src/app/
   shared/      reusable UI with no page knowledge
     vote-button, status-badge, confirm-dialog (+ confirm.service)
   pages/       one folder per route, lazy-loaded
-    login, request-list, request-detail (+ comment-section, admin-panel),
+    login, request-list (+ list-query: URL parsing and vote order),
+    request-detail (+ comment-section, admin-panel),
     request-form, admin-dashboard
 ```
 
@@ -226,6 +229,26 @@ stays the authority; the client checks are for instant feedback.
 
 ---
 
+## Testing
+
+**30 unit tests in 4 files** (Vitest through Angular's `unit-test` builder,
+jsdom, `HttpTestingController`; no API or browser needed). They cover the
+client logic that can break a session or show wrong data. The business rules
+themselves are enforced and tested in the API.
+
+| File | What it proves |
+| --- | --- |
+| `auth.interceptor.spec.ts` | Bearer token added; login / refresh / logout left alone; 401 → one refresh → retry with the new token; a second 401 is not refreshed again; failed refresh → logout as expired; other errors pass through |
+| `auth.service.spec.ts` | Concurrent refreshes send **one** request; a token already rotated by another tab is picked up instead of logging out; normal logout revokes on the API; expired logout skips the call and keeps `returnUrl` |
+| `list-query.spec.ts` | URL → query: bad status, dates, sort and page are dropped; page capped at the API's offset limit; vote re-sort matches the API order (votes, newest, id) |
+| `vote-button.spec.ts` | `aria-pressed` and label; disabled when voting is closed and while a vote is in flight; vote vs unvote; emits the server result; shows the server's 409 message |
+
+Each suite was checked by breaking the code it guards (dropping `logout` from
+the interceptor's skip list, removing the multi-tab fallback, removing the
+`createdAt` tie-break): the matching tests failed.
+
+---
+
 ## Decisions and rejected alternatives
 
 | Decision | Why | Rejected |
@@ -254,13 +277,14 @@ stays the authority; the client checks are for instant feedback.
 - Admin panel: status, official response, merge with confirmation
 - Admin dashboard with totals, status breakdown, top voted and needs review
 - Docker image with nginx, CSP and caching
+- 30 unit tests for the interceptor, token refresh and logout, list URL
+  parsing and the vote button
 
 **Deferred**
 
-- **Frontend tests.** None yet. The business rules are covered by the API's
-  unit tests; next would be component tests for the vote button, interceptor
-  and list query parsing, and one end-to-end flow (login → create → vote →
-  comment).
+- **Page-level component tests and end-to-end tests.** The unit tests cover
+  the risky client logic; next would be page tests (list, detail, admin panel)
+  and one end-to-end flow (login → create → vote → comment).
 - Optimistic voting and real-time updates (other users' votes appear on
   reload).
 - Numbered page buttons (only Previous / Next now).
