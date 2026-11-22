@@ -155,9 +155,10 @@ export class RequestListPage {
    * @returns Nothing.
    */
   protected onVoted(id: string, result: VoteResult): void {
-    this.items.update((items) =>
-      items.map((item) => (item.id === id ? { ...item, ...result } : item)),
-    );
+    this.items.update((items) => {
+      const updated = items.map((item) => (item.id === id ? { ...item, ...result } : item));
+      return this.query.sort === 'votes' ? updated.sort(byVotes) : updated;
+    });
   }
 
   /**
@@ -209,4 +210,18 @@ function toForm(query: FeatureRequestQuery) {
     toDate: query.toDate ?? '',
     sort: query.sort ?? 'votes',
   };
+}
+
+/**
+ * Same order as the API's "votes" sort: voteCount desc, then createdAt desc, then id desc.
+ * @param a - First request.
+ * @param b - Second request.
+ * @returns Negative when a comes first.
+ */
+function byVotes(a: FeatureRequest, b: FeatureRequest): number {
+  return (
+    b.voteCount - a.voteCount ||
+    b.createdAt.localeCompare(a.createdAt) ||
+    b.id.localeCompare(a.id)
+  );
 }
