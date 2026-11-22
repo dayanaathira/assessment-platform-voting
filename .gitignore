@@ -1,0 +1,9 @@
+# Secrets and local state
+.env
+*.pdf
+CLAUDE.md
+
+# Local tool folders
+.agents/
+.aws/
+.codex/

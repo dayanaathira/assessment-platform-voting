@@ -1,0 +1,96 @@
+# Feature Voting: Postgres + API + seed + web.
+#
+#   cp .env.example .env          # then fill in the secrets
+#   docker compose up -d --build  # build and start everything
+#   docker compose ps             # all healthy; seed shows "exited (0)"
+#   docker compose logs -f api    # follow API logs
+#   docker compose down           # stop (data kept)
+#   docker compose down -v        # stop and delete the database and logs
+#
+# App:     http://<host>:${WEB_PORT}            (default 8080)
+# Swagger: http://<host>:${API_PORT}/feature-voting/api-docs  (default 3000)
+
+name: feature-voting
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-feature_voting}
+      POSTGRES_USER: ${POSTGRES_USER:-feature_voting}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No host port: only the api container talks to the database.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./feature-voting
+    image: feature-voting-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &api-env
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_NAME: ${POSTGRES_DB:-feature_voting}
+      POSTGRES_SCHEMA: feature_dev
+      POSTGRES_USER: ${POSTGRES_USER:-feature_voting}
+      POSTGRES_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      NODE_ENV: production
+      LOG_LEVEL: http
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      # The browser reaches the API through nginx on the same origin; this only
+      # matters for Swagger or a frontend served from elsewhere.
+      CORS_ORIGINS: ${WEB_ORIGIN:-http://localhost:8080}
+      # nginx in the web container is one proxy hop.
+      TRUST_PROXY_HOPS: 1
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:?set SEED_USER_PASSWORD in .env}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    # A named volume keeps the image's ownership, so the non-root node user can
+    # write; a ./logs bind mount would be created as root.
+    volumes:
+      - api-logs:/app/logs
+    # Migrations run on boot; /ready answers once the database is reachable.
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:3000/ready']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  # One-off: statuses, roles, admin and user1-user3. Idempotent, so it is safe
+  # on every `up`; it waits for the api so migrations have been applied.
+  seed:
+    image: feature-voting-api
+    depends_on:
+      api:
+        condition: service_healthy
+    environment: *api-env
+    command: ['node', 'dist/src/seed.js']
+    restart: 'no'
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: api:3000
+    ports:
+      - '${WEB_PORT:-8080}:8080'
+
+volumes:
+  pgdata:
+  api-logs:
