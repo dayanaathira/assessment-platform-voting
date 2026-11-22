@@ -22,6 +22,7 @@ export class LoginPage {
   });
   protected readonly submitting = signal(false);
   protected readonly error = signal('');
+  protected readonly expired = this.route.snapshot.queryParamMap.get('expired') === '1';
 
   /**
    * Whether to show a field's error: only after the user has touched it.

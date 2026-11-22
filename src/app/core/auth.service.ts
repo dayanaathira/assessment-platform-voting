@@ -66,13 +66,23 @@ export class AuthService {
 
   /**
    * Clears the tokens and sends the user to the login page.
+   * @param expired - True when the session ran out rather than the user logging out; the
+   *   login page then explains why and returns the user to where they were.
    * @returns Nothing.
    */
-  logout(): void {
+  logout(expired = false): void {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
     this.accessToken.set(null);
-    this.router.navigate(['/login']);
+
+    // Parallel 401s each call this; only the first one (still off /login) redirects.
+    const url = this.router.url;
+    if (url.startsWith('/login')) {
+      return;
+    }
+    this.router.navigate(['/login'], {
+      queryParams: expired ? { returnUrl: url, expired: 1 } : {},
+    });
   }
 
   /**

@@ -23,7 +23,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       }
       return auth.refresh().pipe(
         catchError((refreshErr) => {
-          auth.logout();
+          auth.logout(true);
           return throwError(() => refreshErr);
         }),
         // A second 401 from the retry is passed on, not refreshed again.

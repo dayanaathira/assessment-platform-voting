@@ -1,6 +1,10 @@
 <section class="card login">
   <h1>Sign in</h1>
 
+  @if (expired) {
+    <p class="notice" role="status">Your session has expired. Please sign in again.</p>
+  }
+
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="field">
       <label for="username">Username</label>
