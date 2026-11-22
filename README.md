@@ -92,5 +92,10 @@ on `:4200`.
 
 ```bash
 cd feature-voting && npm test                 # API unit tests
+cd feature-voting && npm run test:live        # concurrency, against a deployed instance
 cd web && npx ng test --watch=false           # frontend unit tests
 ```
+
+The live suite needs `LIVE_ADMIN_PASSWORD` and `LIVE_TEST_USER_PASSWORD`; see
+[API: Testing](feature-voting/README.md#testing) for what it checks and the
+data it leaves.
